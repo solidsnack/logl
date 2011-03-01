@@ -2,7 +2,8 @@
 
   Language description in LogL.agda. The basics are:
 
- .  Offer allocation of logs, assigning a fresh ID to each new log.
+ .  Offer allocation of logs, assigning a fresh ID to each new log; offer
+    deletion of whole logs.
 
  .  Offer storage of log entries to a given log, assigning each log entry a
     unique ID.
@@ -11,6 +12,6 @@
 
  .  Offer search/retrieval of log entries by time range and string matching.
 
- .  Offer complete deletion of a log and the ability to rewrite or filter a
-    log, changing entries while preserving their IDs in a newly allocated log.
+ .  Offer the ability to rewrite or filter a log, changing entries while
+    preserving their IDs in a newly allocated log.
 
