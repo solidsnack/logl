@@ -1,0 +1,16 @@
+  In a nutshell, append only, log-structured storage in the cloud.
+
+  Language description in LogL.agda. The basics are:
+
+ .  Offer allocation of logs, assigning a fresh ID to each new log.
+
+ .  Offer storage of log entries to a given log, assigning each log entry a
+    unique ID.
+
+ .  Offer retrieval of log entries by ID.
+
+ .  Offer search/retrieval of log entries by time range and string matching.
+
+ .  Offer complete deletion of a log and the ability to rewrite or filter a
+    log, changing entries while preserving their IDs in a newly allocated log.
+
