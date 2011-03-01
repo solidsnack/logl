@@ -15,3 +15,5 @@
  .  Offer the ability to rewrite or filter a log, changing entries while
     preserving their IDs in a newly allocated log.
 
+  Try to provide features in this order.
+
