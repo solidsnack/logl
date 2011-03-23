@@ -3,12 +3,12 @@ module Language.LogL.Interpreter where
 import Language.LogL.Syntax
 
 
-data Backend = forall t. Backend { interpret :: LogL t -> IO (Result t) }
+data Interpreter = forall t. Interpreter { interpret :: LogL t -> IO (Result t) }
 
 
 {-| Execution against SimpleDB with particular account credentials. 
  -}
-sdb                         ::  t -> Backend
+sdb                         ::  t -> Interpreter
 sdb keys_and_stuff           =  undefined
  where
   interpret logl             =  case logl of
@@ -20,8 +20,8 @@ sdb keys_and_stuff           =  undefined
 {-| Parallel execution against multiple backends, returning successfully if
     (and as soon as) more than half the backends return successfully. 
  -}
-more_than_half              ::  [Backend] -> Backend
-more_than_half backends      =  Backend {}
+more_than_half              ::  [Interpreter] -> Interpreter
+more_than_half backends      =  Interpreter {}
  where
   interpret logl             =  undefined -- Parallel execution goes here.
   n                          =  ceiling (fromIntegral (length backends) / 2)
@@ -29,6 +29,6 @@ more_than_half backends      =  Backend {}
 {-| Parallel execution against multiple backends, returning successfully if
     and only if all return successfully.
  -}
-all                         ::  [Backend] -> Backend
+all                         ::  [Interpreter] -> Interpreter
 all                          =  undefined
 
