@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings
            , EmptyDataDecls
+           , TypeFamilies
            , StandaloneDeriving
            , GADTs
   #-}
-
 module Language.LogL.Syntax where
 
 import Data.ByteString.Char8
@@ -18,9 +18,6 @@ data LogL t where
   Free                      ::  ID Log -> LogL ()
   Append                    ::  ID Log -> Message -> LogL (ID Entry)
   ClipBefore                ::  ID Entry -> LogL ()
-
-data Result t                =  OK (Meta (Result t)) !t
-                             |  ERR (Meta (Result t)) !ByteString
 
 
 data Log                     =  Log (Meta Log)
