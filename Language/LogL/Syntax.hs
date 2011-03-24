@@ -10,7 +10,7 @@ import Data.ByteString.Char8
 import Data.Time.Clock
 import Data.Time.Format()
 
-import Data.UUID
+import qualified Language.LogL.UUID as UUID
 
 
 data LogL t where
@@ -30,7 +30,7 @@ deriving instance Eq Entry
 deriving instance Ord Entry
 deriving instance Show Entry
 
-data ID t                    =  ID !UUID
+newtype ID t                 =  ID UUID.V1
 deriving instance Eq (ID t)
 deriving instance Ord (ID t)
 deriving instance Show (ID t)
