@@ -80,3 +80,4 @@ timeout w io                 =  do
 
 withMVar'                   ::  MVar t' -> IO t -> IO t
 withMVar' mvar               =  withMVar mvar . const
+
