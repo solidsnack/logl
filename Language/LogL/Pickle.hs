@@ -33,7 +33,7 @@ instance Pickle UTCTime where
   o                          =  pack . show
 
 
-data Field = Year | Month | Day | Hour | Minute | Second | Subseconds
+data Field = Year | Month | Day | Hour | Minute | Second | Subs
 
 short_circuit_date_parser   ::  Parser UTCTime
 short_circuit_date_parser    =  worker (Just Year) ""
@@ -48,23 +48,22 @@ short_circuit_date_parser    =  worker (Just Year) ""
   worker (Just field) soFar  =  case field of
     Year                    ->  worker (Just Month)
                                   =<< sequence [digit,digit,digit,digit]
-    Month                   ->  done <|> r "-01" "-12" Day (then2d $ char '-')
-    Day                     ->  done <|> r "-01" "-31" Hour (then2d $ char '-')
-    Hour                    ->  done <|> r "T00" "T23" Minute
-                                           (then2d (do char ' ' <|> char 'T'
-                                                       pure 'T'              ))
-    Minute                  ->  done <|> r ":00" ":59" Second
-                                           (then2d $ char ':')
-    Second                  ->  done <|> r ":00" ":59" Subseconds
-                                           (then2d $ char ':')
-    Subseconds              ->  done <|> do char '.'
+    Month                   ->  done <|> r "-01" "-12" Day (then2d dash)
+    Day                     ->  done <|> r "-01" "-31" Hour (then2d dash)
+    Hour                    ->  done <|> r "T00" "T23" Minute (then2d t)
+    Minute                  ->  done <|> r ":00" ":59" Second (then2d colon)
+    Second                  ->  done <|> r ":00" ":59" Subs (then2d colon)
+    Subs                    ->  done <|> do _ <- char '.'
                                             d <- some digit
                                             when (length d > 12) empty
-                                            tz
+                                            _ <- tz
                                             worker Nothing ('.':d ++ soFar)
    where
     done                     =  tz >> endOfInput >> worker Nothing soFar
     tz                       =  string "Z" <|> string " UTC"
+    t                        =  (char ' ' <|> char 'T') >> pure 'T'
+    colon                    =  char ':'
+    dash                     =  char '-'
     r lower upper next parser  =  do
       res                   <-  parser
       when (res < lower || res > upper) empty
