@@ -1,11 +1,10 @@
 {-# LANGUAGE OverloadedStrings
-           , EmptyDataDecls
            , StandaloneDeriving
            , GADTs
            , RecordWildCards
            , TypeSynonymInstances
   #-}
-module Language.LogL.Interpreter where
+module Language.LogL.Backend where
 
 import Control.Applicative
 import Control.Concurrent
@@ -24,7 +23,7 @@ import Language.LogL.Syntax
 
 
 data Envelope i t where
-  Envelope :: (Interpreter i) ---------------------------------------------
+  Envelope :: (Backend i) ---------------------------------------------
            => !UTCTime -> !UTCTime -> Info i -> Result t -> Envelope i t
 
 data Result t                =  OK !t | ERROR
@@ -41,7 +40,7 @@ data BackendL t where
   ClearEntry                ::  ID Log -> ID Entry -> BackendL ()
 
 
-class Interpreter backend where
+class Backend backend where
   type Info backend         ::  *
   type Spec backend         ::  *
   start                     ::  Spec backend -> IO backend
@@ -51,7 +50,7 @@ class Interpreter backend where
 
 data SQLite = SQLite { db :: SQLite3.Database, table :: String,
                        path :: String, lock :: MVar ()          }
-instance Interpreter SQLite where
+instance Backend SQLite where
   type Info SQLite           =  ByteString
   type Spec SQLite           =  (String, String)
   start (table, path)        =  do
@@ -88,8 +87,8 @@ sqlite_schema                =  [ "uuid           CHAR(36) PRIMARY KEY"
 
 
 data Timeout i               =  Timeout { wait :: Word16, worker :: i }
-data TimeoutInfo i           =  TIMEOUT | (Interpreter i) => COMPLETED (Info i)
-instance (Interpreter i) => Interpreter (Timeout i) where
+data TimeoutInfo i           =  TIMEOUT | (Backend i) => COMPLETED (Info i)
+instance (Backend i) => Backend (Timeout i) where
   type Info (Timeout i)      =  TimeoutInfo i
   type Spec (Timeout i)      =  (Word16, Spec i)
   start (wait, spec)         =  Timeout wait <$> start spec
@@ -119,7 +118,7 @@ withMVar'                   ::  MVar t' -> IO t -> IO t
 withMVar' mvar               =  withMVar mvar . const
 
 
-envelope :: (Interpreter i) => IO (Info i, Result t) -> IO (Envelope i t)
+envelope :: (Backend i) => IO (Info i, Result t) -> IO (Envelope i t)
 envelope io                  =  do
     start                   <-  getCurrentTime
     (msg, val)              <-  io
