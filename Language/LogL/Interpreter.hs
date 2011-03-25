@@ -29,13 +29,24 @@ data Envelope i t where
 
 data Result t                =  OK !t | ERROR
 
+{-| Backends support a limited language -- write info in log slot, write info
+    in message slot, retrieve log info and retrieve message.
+ -}
+data BackendL t where
+  SetLog                    ::  ID Log -> UTCTime -> BackendL ()
+  SetEntry                  ::  ID Log -> ID Entry -> UTCTime -> BackendL ()
+  GetLog                    ::  ID Log -> BackendL Log
+  GetEntry                  ::  ID Log -> ID Entry -> BackendL Entry
+  ClearLog                  ::  ID Log -> BackendL ()
+  ClearEntry                ::  ID Log -> ID Entry -> BackendL ()
+
 
 class Interpreter backend where
   type Info backend         ::  *
   type Spec backend         ::  *
   start                     ::  Spec backend -> IO backend
   stop                      ::  backend -> IO ()
-  run :: forall t. backend -> LogL t -> IO (Envelope backend t)
+  run :: forall t. backend -> BackendL t -> IO (Envelope backend t)
 
 
 data SQLite = SQLite { db :: SQLite3.Database, table :: String,
