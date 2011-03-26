@@ -7,6 +7,7 @@
 module Language.LogL.Syntax where
 
 import Data.ByteString.Char8
+import Data.String
 import Data.Time.Clock
 import Data.Time.Format()
 
@@ -14,7 +15,7 @@ import qualified Language.LogL.UUID as UUID
 
 
 data LogL t where
-  Alloc                     ::  LogL (ID Log)
+  Alloc                     ::  ByteString128 -> LogL (ID Log)
   Free                      ::  ID Log -> LogL ()
   Append                    ::  ID Log -> Message -> LogL (ID Entry)
   ClipBefore                ::  ID Entry -> LogL ()
@@ -41,7 +42,12 @@ deriving instance Eq Message
 deriving instance Ord Message
 deriving instance Show Message
 
+newtype ByteString128        =  ByteString128 ByteString
+deriving instance Eq ByteString128
+deriving instance Ord ByteString128
+deriving instance Show ByteString128
+deriving instance IsString ByteString128
+
 
 type Meta t                  =  ((ID t), UTCTime)
-
 
