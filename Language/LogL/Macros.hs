@@ -12,9 +12,15 @@ import Control.Applicative
  -}
 text f                       =  lift =<< runIO (readFile f)
 
+{-| Read in a file and split out its text blocks, making a list.
+ -}
+blocks_list f                =  do
+  contents                  <-  runIO $ blocks <$> readFile f
+  return $ ListE (LitE . stringL <$> contents)
+
 {-| Read in a file and split out its text blocks, making a tuple. 
  -}
-text_blocks f                =  do
+blocks_tuple f               =  do
   contents                  <-  runIO $ blocks <$> readFile f
   return $ TupE (LitE . stringL <$> contents)
 

@@ -61,15 +61,8 @@ instance Backend SQLite where
   type Spec SQLite           =  String
   start path                 =  do
     db                      <-  SQLite3.open path
-    prep_step_fin db logs
-    prep_step_fin db entries
+    mapM_ (sqlite_one_step db) $(Macros.blocks_list "./sqlite/ddl.sql")
     SQLite db path <$> newMVar ()
-   where
-    (logs, entries)          =  $(Macros.text_blocks "./sqlite/ddl.sql")
-    prep_step_fin db str     =  do
-      stmt                  <-  SQLite3.prepare db str
-      _                     <-  SQLite3.step stmt
-      SQLite3.finalize stmt
   stop SQLite{..}            =  withMVar' lock (SQLite3.close db)
   run SQLite{..} queries     =  withMVar' lock . sequence
                              $  (envelope . run_once) <$> queries
@@ -82,6 +75,12 @@ instance Backend SQLite where
       return $ case result of
         Left msg            ->  (Pickle.o msg, ERROR)
         Right val           ->  ("", val)
+
+sqlite_one_step             ::  SQLite3.Database -> String -> IO ()
+sqlite_one_step db str       =  do
+  stmt                      <-  SQLite3.prepare db str
+  _                         <-  SQLite3.step stmt
+  SQLite3.finalize stmt
 
 
 --data Timeout i               =  Timeout { wait :: Word16, worker :: i }
