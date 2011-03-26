@@ -1,4 +1,3 @@
-
 --  SetLog
 INSERT INTO logs (uuid, time, destroy, tag) VALUES (?, ?, FALSE, ?); 
 
