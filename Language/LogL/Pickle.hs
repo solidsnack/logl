@@ -2,15 +2,16 @@
   #-}
 module Language.LogL.Pickle where
 
-import System.Locale (defaultTimeLocale)
-import Data.Time.Clock
-import Data.Time.Format
+import Control.Applicative
+import Control.Monad
 import Data.ByteString.Char8 (ByteString, pack, unpack)
 import qualified Data.ByteString.UTF8 as UTF8
-import Control.Monad
-import Control.Applicative
+import Data.Time.Clock
+import Data.Time.Format
+import Data.Word
+import System.Locale (defaultTimeLocale)
 
-import Data.Attoparsec
+import Data.Attoparsec (parseOnly)
 import Data.Attoparsec.Char8
 
 
@@ -54,8 +55,7 @@ short_circuit_date_parser    =  worker (Just Year) ""
     Minute                  ->  done <|> r ":00" ":59" Second (then2d colon)
     Second                  ->  done <|> r ":00" ":59" Subs (then2d colon)
     Subs                    ->  done <|> do _ <- char '.'
-                                            d <- some digit
-                                            when (length d > 12) empty
+                                            d <- unpack <$> upto 12 isDigit
                                             _ <- tz
                                             worker Nothing ('.':d ++ soFar)
    where
@@ -69,4 +69,11 @@ short_circuit_date_parser    =  worker (Just Year) ""
       when (res < lower || res > upper) empty
       worker (Just next) (soFar ++ res)
     then2d                   =  sequence . (:[digit, digit])
+
+
+upto                        ::  Word32 -> (Char -> Bool) -> Parser ByteString
+upto count pred              =  scan count f
+ where
+  f n c | pred c && n > 0    =  Just (n - 1)
+        | otherwise          =  Nothing
 
