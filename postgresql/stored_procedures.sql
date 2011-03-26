@@ -25,17 +25,21 @@ BEGIN
       , user_time   timestamp with time zone NOT NULL
       , time        timestamp with time zone NOT NULL
       , data        bytea NOT NULL
-      ,             PRIMARY KEY (uuid, log)           ); 
+      ,             PRIMARY KEY (uuid, log)           );
     CREATE INDEX   "entries/log,user_time"
               ON   "Log/L,v2011-03-25".entries (log, user_time);
     CREATE INDEX   "entries/log" ON "Log/L,v2011-03-25".entries (log);
     CREATE INDEX   "entries/time" ON "Log/L,v2011-03-25".entries (time);
     RETURN NEXT    'Log/L,v2011-03-25.entries';
   EXCEPTION WHEN duplicate_table THEN END;
-  BEGIN
-    CREATE TABLE   "Log/L,v2011-03-25".entries_with_bool
-      ( okay        boolean NOT NULL )
-    INHERITS ("Log/L,v2011-03-25".entries);
+  BEGIN -- A type, not a table. Put no data in here!
+    CREATE TYPE    "Log/L,v2011-03-25".entries_with_bool AS
+      ( uuid        uuid
+      , log         uuid
+      , user_time   timestamp with time zone
+      , time        timestamp with time zone
+      , data        bytea
+      , okay        boolean                  );
     RETURN NEXT    'Log/L,v2011-03-25.entries_with_bool';
   EXCEPTION WHEN duplicate_table THEN END;
 END;
@@ -63,15 +67,23 @@ CREATE OR REPLACE FUNCTION
  "Log/L,v2011-03-25".search_entries( uuid, uuid, timestamp with time zone
                                                , timestamp with time zone )
   RETURNS SETOF "Log/L,v2011-03-25".entries_with_bool AS $$
-SELECT "Log/L,v2011-03-25".entries.*, NOT("Log/L,v2011-03-25".logs.destroy)
-     FROM "Log/L,v2011-03-25".entries, "Log/L,v2011-03-25".logs
-    WHERE "Log/L,v2011-03-25".entries.log = $1
-      AND "Log/L,v2011-03-25".entries.user_time >= $3
-      AND "Log/L,v2011-03-25".entries.user_time <= $4
-      AND "Log/L,v2011-03-25".entries.uuid > $2
-      AND "Log/L,v2011-03-25".logs.uuid = $1
- ORDER BY ( "Log/L,v2011-03-25".entries.user_time
-          , "Log/L,v2011-03-25".entries.uuid      ) ASC
+WITH entries AS ( SELECT "Log/L,v2011-03-25".entries.*
+                       FROM "Log/L,v2011-03-25".entries
+                      WHERE "Log/L,v2011-03-25".entries.log = $1
+                        AND "Log/L,v2011-03-25".entries.user_time >= $3
+                        AND "Log/L,v2011-03-25".entries.user_time <= $4
+                        AND "Log/L,v2011-03-25".entries.uuid > $2
+                   ORDER BY ( "Log/L,v2011-03-25".entries.user_time
+                            , "Log/L,v2011-03-25".entries.uuid      ) ASC
+                      LIMIT 256                                           ),
+     logs AS ( SELECT "Log/L,v2011-03-25".logs.uuid,
+                      "Log/L,v2011-03-25".logs.destroy
+                 FROM "Log/L,v2011-03-25".logs
+                WHERE "Log/L,v2011-03-25".logs.uuid = $1
+                LIMIT 1                                  )
+SELECT entries.*, NOT(logs.destroy)
+     FROM entries FULL OUTER JOIN logs ON entries.log = logs.uuid
+ ORDER BY (entries.user_time, entries.uuid) ASC
     LIMIT 256;
 $$ LANGUAGE sql STRICT ROWS 256;
 
