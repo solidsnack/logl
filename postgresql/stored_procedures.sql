@@ -1,7 +1,7 @@
 
 --  idempotent setup
-DROP FUNCTION IF EXISTS "Log/L,v2011-03-25.setup"() CASCADE;
-CREATE OR REPLACE FUNCTION "Log/L,v2011-03-25.setup"()
+DROP FUNCTION IF EXISTS "Log/L,v2011-03-25"();
+CREATE OR REPLACE FUNCTION "Log/L,v2011-03-25"()
 RETURNS SETOF text AS $$
 BEGIN
   IF NOT EXISTS ( SELECT 1 FROM information_schema.schemata
@@ -41,5 +41,5 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql;
-SELECT "Log/L,v2011-03-25.setup"();
+SELECT "Log/L,v2011-03-25"();
 
