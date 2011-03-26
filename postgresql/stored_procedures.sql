@@ -29,7 +29,7 @@ BEGIN
   THEN
     CREATE TABLE   "Log/L,v2011-03-25".entries
       ( uuid        uuid NOT NULL
-      , log         uuid REFERENCES "Log/L,v2011-03-25".logs (uuid) NOT NULL
+      , log         uuid NOT NULL
       , user_time   timestamp with time zone NOT NULL
       , time        timestamp with time zone NOT NULL
       , data        bytea NOT NULL
