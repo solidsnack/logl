@@ -1,6 +1,17 @@
 
+--  Ensure plpgsql is available. Drawn from:
+--    http://wiki.postgresql.org/wiki/CREATE_OR_REPLACE_LANGUAGE
+CREATE OR REPLACE FUNCTION make_plpgsql()
+RETURNS VOID AS $$
+CREATE LANGUAGE plpgsql;
+$$ LANGUAGE sql;
+SELECT CASE WHEN EXISTS ( SELECT 1 FROM pg_catalog.pg_language
+                           WHERE lanname='plpgsql'             )
+            THEN NULL
+            ELSE make_plpgsql() END;
+DROP FUNCTION make_plpgsql();
+
 --  Idempotent setup of schema, tables and types.
-DROP FUNCTION IF EXISTS "logl#setup"();
 CREATE OR REPLACE FUNCTION "logl#setup"()
   RETURNS SETOF text AS $$
 BEGIN
