@@ -92,7 +92,7 @@ BEGIN
    WHERE uuid = $1;
   IF FOUND THEN
     IF result.tombstone IS NOT NULL THEN
-      SELECT NULL, NULL, NULL, result.tombstone INTO result;
+      SELECT result.uuid, NULL, NULL, result.tombstone INTO result;
     END IF;
     RETURN NEXT result;
   END IF;
@@ -110,7 +110,7 @@ BEGIN
    WHERE uuid = $1;
   IF FOUND THEN
     IF result.tombstone IS NOT NULL THEN
-      SELECT result.uuid, NULL, NULL, NULL, NULL, NULL, result.tombstone
+      SELECT NULL, result.log, NULL, NULL, NULL, NULL, result.tombstone
         INTO result;
     END IF;
     RETURN NEXT result;
