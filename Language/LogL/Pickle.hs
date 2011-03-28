@@ -6,6 +6,7 @@ import Control.Applicative
 import Control.Monad
 import Data.ByteString.Char8 (ByteString, pack, unpack)
 import qualified Data.ByteString.UTF8 as UTF8
+import Data.String
 import Data.Time.Clock
 import Data.Time.Format
 import Data.Word
@@ -32,7 +33,9 @@ instance Pickle UTCTime where
     Left _                  ->  Nothing
     Right time              ->  Just time
   o                          =  pack . show
-
+instance IsString UTCTime where
+  fromString s =
+    (either error id . parseOnly short_circuit_date_parser . pack) s
 
 data Field = Year | Month | Day | Hour | Minute | Second | Subs
 
