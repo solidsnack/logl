@@ -28,22 +28,44 @@ data Envelope i where
   Envelope :: (Backend i) ---------------------------------------------
            => !UTCTime -> !UTCTime -> Info i -> Result -> Envelope i
 
---  TODO: Put 'legit output' constraint on OK constructor.
-data Result                  =  forall t. OK !t | ERROR
+{-| A search may failure or it may return a result.
+ -}
+data Status                  =  forall t. OK !(Result t) | ERROR
+
+{-| A result may be a value, the absence of any information relating to this
+    value or a tombstone, indicating the value is deleted. 
+ -}
+data ResultSet               =  ResultSet { found :: Set t
+                                          , tombstones :: Map (ID t) UTCTime }
+instance Monoid (ResultSet t) where
+  NoInfo `mappend` anything_else               =  anything_else
+  tombstone@(Tombstone _ _) `mappend` _        =  tombstone
+  found@(Found _) `mappend` Found _            =  found
+
+data TombstoneFunction t = Tombstone
 
 {-| Backends support a few tasks, allowing us to set, delete and retrieve logs
     and log entries. Backends are completely permissive as regards
     over-writing existing entries and so forth -- single-assignment invariants
     come from the interpreter layer, which manages the IDs.
  -}
-data Task                    =  SetLog !(ID Log) !UTCTime
-                             |  SetEntry !(ID Log) !(ID Entry) !UTCTime
-                             |  GetLog !(ID Log)
-                             |  GetEntry !(ID Log) !(ID Entry)
-                             |  DeleteLog !(ID Log)
-                             |  DeleteEntry !(ID Log) !(ID Entry)
-                             |  EntryTimeRangeSearch !(ID Log)
-                             |  LogTagSearch !ByteString128 [ID Log]
+data Task where
+  WriteLog                  ::  Log -> Task ()
+  WriteEntry                ::  Entry -> Task ()
+  WriteTombstone            ::  ID Log -> Task ()
+  LookupLog                 ::  ID Log -> Task Log
+  LookupEntry               ::  ID Log -> ID Entry -> Task Entry
+  EntrySearch               ::  ID Log -> ID Entry -> (UTCTime, UTCTime)
+                            ->  Task [Entry]
+  LogTagSearch              ::  ByteString128 -> [ID Log] -> Task [ID Log]
+--data Task                    =  SetLog !(ID Log) !UTCTime
+--                             |  SetEntry !(ID Log) !(ID Entry) !UTCTime
+--                             |  GetLog !(ID Log)
+--                             |  GetEntry !(ID Log) !(ID Entry)
+--                             |  DeleteLog !(ID Log)
+--                             |  DeleteEntry !(ID Log) !(ID Entry)
+--                             |  EntryTimeRangeSearch !(ID Log)
+--                             |  LogTagSearch !ByteString128 [ID Log]
 
 
 class Backend backend where
