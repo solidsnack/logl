@@ -9,38 +9,36 @@ BEGIN
     RETURN NEXT    'Log/L,v2011-03-25';
   EXCEPTION WHEN duplicate_schema THEN END;
   BEGIN
-    CREATE TABLE   "Log/L,v2011-03-25".logs
-      ( uuid        uuid PRIMARY KEY
-      , time        timestamp with time zone NOT NULL
-      , tombstone   timestamp with time zone DEFAULT NULL
-      , tag         bytea CHECK (length(tag) <= 128) NOT NULL ); 
-    CREATE INDEX   "logs/tag" ON "Log/L,v2011-03-25".logs (tag);
-    CREATE INDEX   "logs/time" ON "Log/L,v2011-03-25".logs (time);
-    RETURN NEXT    'Log/L,v2011-03-25.logs';
+    CREATE TABLE   "Log/L,v2011-03-25".log
+      ( uuid        uuid PRIMARY KEY,
+        timestamp   timestamp with time zone NOT NULL,
+        tag         bytea CHECK (length(tag) <= 128) NOT NULL,
+        tombstone   timestamp with time zone DEFAULT NULL      );
+    CREATE INDEX   "log/timestamp" ON "Log/L,v2011-03-25".log (timestamp);
+    CREATE INDEX   "log/tag" ON "Log/L,v2011-03-25".log (tag);
+    CREATE INDEX   "log/tombstone" ON "Log/L,v2011-03-25".log (tombstone);
+    RETURN NEXT    'Log/L,v2011-03-25.log';
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
-    CREATE TABLE   "Log/L,v2011-03-25".entries
-      ( uuid        uuid NOT NULL
-      , log         uuid NOT NULL
-      , user_time   timestamp with time zone NOT NULL
-      , time        timestamp with time zone NOT NULL
-      , data        bytea NOT NULL
-      ,             PRIMARY KEY (uuid, log)           );
-    CREATE INDEX   "entries/log,user_time"
-              ON   "Log/L,v2011-03-25".entries (log, user_time);
-    CREATE INDEX   "entries/log" ON "Log/L,v2011-03-25".entries (log);
-    CREATE INDEX   "entries/time" ON "Log/L,v2011-03-25".entries (time);
-    RETURN NEXT    'Log/L,v2011-03-25.entries';
+    CREATE TABLE   "Log/L,v2011-03-25".entry
+      ( uuid        uuid PRIMARY KEY,
+        log         uuid NOT NULL,
+        timestamp   timestamp with time zone NOT NULL,
+        client_time timestamp with time zone NOT NULL,
+        tag         bytea CHECK (length(tag) <= 128) NOT NULL,
+        bytes       bytea NOT NULL                             );
+    CREATE INDEX   "entry/timestamp" ON "Log/L,v2011-03-25".entry (timestamp);
+    CREATE INDEX   "entry/log,client_time"
+              ON   "Log/L,v2011-03-25".entry (log,client_time);
+    CREATE INDEX   "entry/log" ON "Log/L,v2011-03-25".entry (log);
+    RETURN NEXT    'Log/L,v2011-03-25.entry';
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
-    CREATE TYPE    "Log/L,v2011-03-25".entries_with_bool AS
-      ( uuid        uuid
-      , log         uuid
-      , user_time   timestamp with time zone
-      , time        timestamp with time zone
-      , data        bytea
-      , tombstone   timestamp with time zone );
-    RETURN NEXT    'Log/L,v2011-03-25.entries_with_bool';
+    CREATE VIEW    "Log/L,v2011-03-25".entry_with_tombstone AS
+      SELECT entry.*, log.tombstone
+        FROM "Log/L,v2011-03-25".entry entry, "Log/L,v2011-03-25".log log
+       WHERE entry.log = log.uuid;
+    RETURN NEXT    'Log/L,v2011-03-25.entry_with_tombstone';
   EXCEPTION WHEN duplicate_table THEN END;
 END;
 $$ LANGUAGE plpgsql;

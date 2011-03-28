@@ -1,32 +1,38 @@
 {-# LANGUAGE OverloadedStrings
-           , EmptyDataDecls
-           , TypeFamilies
            , StandaloneDeriving
+           , DisambiguateRecordFields
            , GADTs
   #-}
 module Language.LogL.Syntax where
 
 import Data.ByteString.Char8
+import Data.Set (Set)
 import Data.String
 import Data.Time.Clock
 import Data.Time.Format()
 
+import Language.LogL.Tag (Tag)
 import qualified Language.LogL.UUID as UUID
 
 
 data LogL t where
-  Alloc                     ::  ByteString128 -> LogL (ID Log)
+  Alloc                     ::  Tag -> LogL (ID Log)
   Free                      ::  ID Log -> LogL ()
-  Append                    ::  ID Log -> Message -> LogL (ID Entry)
-  ClipBefore                ::  ID Entry -> LogL ()
+  Append                    ::  ID Log -> UTCTime -> Tag -> ByteString
+                            ->  LogL (ID Entry)
+  SearchEntries :: ID Log -> (UTCTime, UTCTime) -> ID Entry -> Word8 -> Tag
+                -> LogL (Set (ID Entry))
+  SearchLogs                ::  Set (ID Log) -> Tag -> LogL (Set (ID Log))
 
 
-data Log                     =  Log (Meta Log)
+data Log                     =  Log !(ID Log) !UTCTime !Tag
 deriving instance Eq Log
 deriving instance Ord Log
 deriving instance Show Log
 
-data Entry                   =  Entry (Meta Entry)
+
+data Entry                   =  Entry !(ID Entry) !(ID Log) !UTCTime
+                                      !UTCTime !Tag !ByteString
 deriving instance Eq Entry
 deriving instance Ord Entry
 deriving instance Show Entry
@@ -36,18 +42,8 @@ deriving instance Eq (ID t)
 deriving instance Ord (ID t)
 deriving instance Show (ID t)
 
-data Message                 =  Message { stamp :: !UTCTime,
-                                          body :: !ByteString } 
+data Message                 =  Message !UTCTime !Tag !ByteString
 deriving instance Eq Message
 deriving instance Ord Message
 deriving instance Show Message
-
-newtype ByteString128        =  ByteString128 ByteString
-deriving instance Eq ByteString128
-deriving instance Ord ByteString128
-deriving instance Show ByteString128
-deriving instance IsString ByteString128
-
-
-type Meta t                  =  ((ID t), UTCTime)
 
