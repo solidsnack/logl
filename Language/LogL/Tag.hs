@@ -3,9 +3,11 @@
   #-}
 module Language.LogL.Tag (Tag(), max) where
 
-import Data.Word
 import Data.ByteString.Char8
+import Data.Monoid
 import Data.String
+import Data.Word
+import Prelude hiding (length, take, max)
 
 import Language.LogL.Pickle
 
@@ -20,9 +22,9 @@ deriving instance Show Tag
 deriving instance IsString Tag
 instance Monoid Tag where
   mempty                     =  ""
-  Tag b `mappend` Tag b'     =  take 128 (b `mappend` b')
+  Tag b `mappend` Tag b'     =  (Tag . take casted) (b `mappend` b')
 instance Pickle Tag where
-  i b | length b <= max      =  Just (Tag b)
+  i b | length b <= casted   =  Just (Tag b)
       | otherwise            =  Nothing
   o (Tag b)                  =  b
 
@@ -30,4 +32,6 @@ instance Pickle Tag where
  -}
 max                         ::  Word32
 max                          =  128
+
+casted                       =  fromIntegral max
 
