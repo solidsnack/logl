@@ -1,0 +1,44 @@
+name                          : logl
+version                       : 0.0.0
+category                      : System
+license                       : BSD3
+license-file                  : LICENSE
+author                        : Jason Dusek
+maintainer                    : oss@solidsnack.be
+homepage                      : http://github.com/solidsnack/logl/
+synopsis                      : Append-only storage and retrieval engine.
+description                   :
+  Append-only, distributed log storage engine with tagging, tag search and
+  time-range search.
+
+
+cabal-version                 : >= 1.8.0.6
+build-type                    : Simple
+extra-source-files            : README
+
+flag split-base
+
+flag daemon
+  description                 : Build daemon.
+  default                     : False
+
+library
+  if flag(split-base)
+    build-depends             : base >= 4 && < 5
+  else
+    build-depends             : base < 4
+  build-depends               : containers
+                              , attoparse >= 0.8.5
+                              , bytestring >= 0.9
+                              , template-haskell
+                              , system-uuid >= 2.0.0
+  exposed-modules             : ...
+  extensions                  : DisambiguateRecordFields
+                              , GADTs
+                              , OverloadedStrings
+                              , RecordWildCards
+                              , StandaloneDeriving
+                              , TemplateHaskell
+                              , TypeSynonymInstances
+
+
