@@ -38,10 +38,14 @@ BEGIN
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
     CREATE VIEW     logl.log_with_tombstone AS
-      SELECT log.*, tombstone.timestamp AS tombstone
-        FROM logl.log AS log LEFT OUTER JOIN
-             logl.tombstone AS tombstone
-          ON (log.uuid = tombstone.log);
+         SELECT     log.*, tombstone.timestamp AS tombstone
+           FROM     logl.log AS log LEFT OUTER JOIN
+             	    logl.tombstone AS tombstone
+             ON    (log.uuid = tombstone.log);
+          UNION
+         SELECT     tombstone.log, NULL, NULL,
+                    tombstone.timestamp AS tombstone
+           FROM     logl.tombstone AS tombstone;
     RETURN NEXT    'logl.log_with_tombstone';
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
@@ -60,10 +64,14 @@ BEGIN
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
     CREATE VIEW     logl.entry_with_tombstone AS
-      SELECT entry.*, tombstone.timestamp AS tombstone
-        FROM logl.entry AS entry LEFT OUTER JOIN
-             logl.tombstone AS tombstone
-          ON (entry.log = tombstone.log);
+         SELECT     entry.*, tombstone.timestamp AS tombstone
+           FROM     logl.entry AS entry LEFT OUTER JOIN
+                    logl.tombstone AS tombstone
+             ON    (entry.log = tombstone.log)
+          UNION
+         SELECT     NULL, tombstone.log, NULL, NULL, NULL, NULL,
+                    tombstone.timestamp AS tombstone
+           FROM     logl.tombstone AS tombstone;
     RETURN NEXT    'logl.entry_with_tombstone';
   EXCEPTION WHEN duplicate_table THEN END;
 END;
@@ -94,40 +102,28 @@ $$ LANGUAGE sql;
 
 --  LookupLog                 ::  ID Log -> Task Log
 CREATE OR REPLACE FUNCTION logl.lookup_log(uuid)
-  RETURNS SETOF logl.log_with_tombstone AS $$
-DECLARE
-  result logl.log_with_tombstone;
-BEGIN
-  SELECT * INTO result
+RETURNS SETOF logl.log_with_tombstone AS $$
+  SELECT *
     FROM logl.log_with_tombstone
-   WHERE uuid = $1;
-  IF FOUND THEN
-    IF result.tombstone IS NOT NULL THEN
-      SELECT result.uuid, NULL, NULL, result.tombstone INTO result;
-    END IF;
-    RETURN NEXT result;
-  END IF;
-END;
-$$ LANGUAGE plpgsql;
+   WHERE log = $1 AND (timestamp IS NULL OR tombstone IS NULL);
+$$ LANGUAGE sql;
 
 --  LookupEntry               ::  ID Entry -> Task Entry
 CREATE OR REPLACE FUNCTION logl.lookup_entry(uuid)
-  RETURNS SETOF logl.entry_with_tombstone AS $$
-DECLARE
-  result logl.entry_with_tombstone;
-BEGIN
-  SELECT * INTO result
+RETURNS SETOF logl.entry_with_tombstone AS $$
+  SELECT *
     FROM logl.entry_with_tombstone
-   WHERE uuid = $1;
-  IF FOUND THEN
-    IF result.tombstone IS NOT NULL THEN
-      SELECT NULL, result.log, NULL, NULL, NULL, NULL, result.tombstone
-        INTO result;
-    END IF;
-    RETURN NEXT result;
-  END IF;
-END;
-$$ LANGUAGE plpgsql;
+   WHERE uuid = $1 AND ( IS NULL OR tombsto IS NULL);
+$$ LANGUAGE sql;
+
+--  SearchEntries :: ID Log -> (UTCTime, UTCTime) -> ID Entry -> Task [Entry]
+CREATE OR REPLACE FUNCTION logl.search_entries( uuid, uuid,
+                                                timestamp with time zone,
+                                                timestamp with time zone  )
+RETURNS SETOF logl.entry_with_tombstone AS $$
+
+$$ LANGUAGE sql;
+
 
 --  Returns entries following a particular entry, in the given time range.
 --  The UUID of the last returned row forms a "natural cursor" that allows
