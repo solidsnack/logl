@@ -71,7 +71,7 @@ BEGIN
     RETURN NEXT    'logl.entry_with_tombstone';
   EXCEPTION WHEN duplicate_table THEN END;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql STRICT;
 SELECT "logl#setup"();
 
 --  WriteLog                  ::  Log -> Task ()
@@ -79,7 +79,7 @@ CREATE OR REPLACE FUNCTION logl.write_log( uuid, timestamp with time zone,
                                            bytea )
 RETURNS VOID AS $$
   INSERT INTO logl.log VALUES ($1, $2, $3);
-$$ LANGUAGE sql;
+$$ LANGUAGE sql STRICT;
 
 --  WriteEntry                ::  Entry -> Task ()
 CREATE OR REPLACE FUNCTION logl.write_entry( uuid, uuid,
@@ -88,20 +88,20 @@ CREATE OR REPLACE FUNCTION logl.write_entry( uuid, uuid,
                                              bytea, bytea              )
 RETURNS VOID AS $$
   INSERT INTO logl.entry VALUES ($1, $2, $3, $4, $5, $6);
-$$ LANGUAGE sql;
+$$ LANGUAGE sql STRICT;
 
 --  WriteTombstone            ::  ID Log -> Task ()
 CREATE OR REPLACE FUNCTION logl.write_tombstone(uuid, timestamp with time zone)
 RETURNS VOID AS $$
   INSERT INTO logl.tombstone VALUES ($1, $2);
-$$ LANGUAGE sql;
+$$ LANGUAGE sql STRICT;
 
 --  LookupLog                 ::  ID Log -> Task Log
 CREATE OR REPLACE FUNCTION logl.lookup_log(uuid)
 RETURNS SETOF logl.log_with_tombstone AS $$
   SELECT * FROM logl.log_with_tombstone
    WHERE uuid = $1 AND (timestamp IS NULL OR tombstone IS NULL);
-$$ LANGUAGE sql;
+$$ LANGUAGE sql STRICT;
 
 --  LookupEntry               ::  ID Entry -> Task Entry
 CREATE OR REPLACE FUNCTION logl.lookup_entry(uuid)
@@ -119,7 +119,7 @@ BEGIN
     RETURN NEXT res;
   END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql STRICT;
 
 --  SearchEntries :: ID Log -> (UTCTime, UTCTime) -> ID Entry -> Task [Entry]
 --CREATE OR REPLACE FUNCTION logl.search_entries( uuid, uuid,
