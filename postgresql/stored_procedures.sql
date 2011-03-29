@@ -41,7 +41,7 @@ BEGIN
          SELECT     log.*, tombstone.timestamp AS tombstone
            FROM     logl.log AS log LEFT OUTER JOIN
              	    logl.tombstone AS tombstone
-             ON    (log.uuid = tombstone.log);
+             ON    (log.uuid = tombstone.log)
           UNION
          SELECT     tombstone.log, NULL, NULL,
                     tombstone.timestamp AS tombstone
@@ -103,26 +103,35 @@ $$ LANGUAGE sql;
 --  LookupLog                 ::  ID Log -> Task Log
 CREATE OR REPLACE FUNCTION logl.lookup_log(uuid)
 RETURNS SETOF logl.log_with_tombstone AS $$
-  SELECT *
-    FROM logl.log_with_tombstone
-   WHERE log = $1 AND (timestamp IS NULL OR tombstone IS NULL);
+  SELECT * FROM logl.log_with_tombstone
+   WHERE uuid = $1 AND (timestamp IS NULL OR tombstone IS NULL);
 $$ LANGUAGE sql;
 
 --  LookupEntry               ::  ID Entry -> Task Entry
 CREATE OR REPLACE FUNCTION logl.lookup_entry(uuid)
 RETURNS SETOF logl.entry_with_tombstone AS $$
-  SELECT *
+DECLARE
+  res logl.entry_with_tombstone;
+BEGIN
+  SELECT * INTO res
     FROM logl.entry_with_tombstone
-   WHERE uuid = $1 AND ( IS NULL OR tombsto IS NULL);
-$$ LANGUAGE sql;
+   WHERE uuid = $1;
+  IF FOUND THEN
+    IF res.tombstone IS NOT NULL THEN
+      SELECT NULL, res.log, NULL, NULL, NULL, NULL, res.tombstone INTO res;
+    END IF;
+    RETURN NEXT res;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 --  SearchEntries :: ID Log -> (UTCTime, UTCTime) -> ID Entry -> Task [Entry]
-CREATE OR REPLACE FUNCTION logl.search_entries( uuid, uuid,
-                                                timestamp with time zone,
-                                                timestamp with time zone  )
-RETURNS SETOF logl.entry_with_tombstone AS $$
-
-$$ LANGUAGE sql;
+--CREATE OR REPLACE FUNCTION logl.search_entries( uuid, uuid,
+--                                                timestamp with time zone,
+--                                                timestamp with time zone  )
+--RETURNS SETOF logl.entry_with_tombstone AS $$
+--
+--$$ LANGUAGE sql;
 
 
 --  Returns entries following a particular entry, in the given time range.
