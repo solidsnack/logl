@@ -1,13 +1,10 @@
 
 --  Ensure plpgsql is available. Drawn from:
 --    http://wiki.postgresql.org/wiki/CREATE_OR_REPLACE_LANGUAGE
-CREATE OR REPLACE FUNCTION make_plpgsql()
-RETURNS VOID AS $$
-CREATE LANGUAGE plpgsql;
-$$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION make_plpgsql() RETURNS VOID
+  AS $$ CREATE LANGUAGE plpgsql; $$ LANGUAGE sql;
 SELECT CASE WHEN EXISTS ( SELECT 1 FROM pg_catalog.pg_language
-                           WHERE lanname='plpgsql'             )
-            THEN NULL
+                                   WHERE lanname='plpgsql'     ) THEN NULL
             ELSE make_plpgsql() END;
 DROP FUNCTION make_plpgsql();
 
@@ -23,8 +20,7 @@ BEGIN
     CREATE TABLE    logl.tombstone
       ( log         uuid PRIMARY KEY,
         timestamp   timestamp with time zone NOT NULL );
-    CREATE INDEX   "tombstone/timestamp"
-              ON    logl.tombstone (timestamp);
+    CREATE INDEX   "tombstone/timestamp" ON logl.tombstone (timestamp);
     RETURN NEXT    'logl.tombstone';
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
@@ -32,8 +28,8 @@ BEGIN
       ( uuid        uuid PRIMARY KEY,
         timestamp   timestamp with time zone NOT NULL,
         tag         bytea CHECK (length(tag) <= 128) NOT NULL );
-    CREATE INDEX   "log/timestamp" ON  logl.log (timestamp);
-    CREATE INDEX   "log/tag" ON  logl.log (tag);
+    CREATE INDEX   "log/timestamp" ON logl.log (timestamp);
+    CREATE INDEX   "log/tag" ON logl.log (tag);
     RETURN NEXT    'logl.log';
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
@@ -56,7 +52,7 @@ BEGIN
         client_time timestamp with time zone NOT NULL,
         tag         bytea CHECK (length(tag) <= 128) NOT NULL,
         bytes       bytea NOT NULL                             );
-    CREATE INDEX   "entry/timestamp" ON  logl.entry (timestamp);
+    CREATE INDEX   "entry/timestamp" ON logl.entry (timestamp);
     CREATE INDEX   "entry/log,client_time"
               ON    logl.entry (log,client_time);
     CREATE INDEX   "entry/log" ON  logl.entry (log);
