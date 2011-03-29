@@ -110,32 +110,24 @@ $$ LANGUAGE sql STRICT;
 --  LookupEntry               ::  ID Entry -> Task Entry
 CREATE OR REPLACE FUNCTION logl.lookup_entry(uuid)
 RETURNS SETOF logl.entry_with_tombstone AS $$
-DECLARE
-  res logl.entry_with_tombstone;
-BEGIN
-  SELECT * INTO res
-    FROM logl.entry_with_tombstone
-   WHERE uuid = $1;
-  IF FOUND THEN
-    IF res.tombstone IS NOT NULL THEN
-      SELECT NULL, res.log, NULL, NULL, NULL, NULL, res.tombstone INTO res;
-    END IF;
-    RETURN NEXT res;
-  END IF;
-END;
-$$ LANGUAGE plpgsql STRICT;
+  WITH log_uuid AS (SELECT log FROM logl.entry_with_tombstone WHERE uuid = $1)
+  SELECT * FROM     logl.entry_with_tombstone
+          WHERE    (uuid = $1 AND tombstone IS NULL)
+             OR    (timestamp IS NULL AND log = (SELECT * FROM log_uuid));
+$$ LANGUAGE sql STRICT;
 
 --  SearchEntries :: ID Log -> (UTCTime, UTCTime) -> ID Entry -> Task [Entry]
 CREATE OR REPLACE FUNCTION logl.search_entries( uuid, uuid,
                                                 timestamp with time zone,
                                                 timestamp with time zone  )
 RETURNS SETOF logl.entry_with_tombstone AS $$
+  WITH              cursor_stamp AS ( SELECT client_time, uuid
+                                        FROM logl.entry_with_tombstone
+                                       WHERE uuid = $1                 )
   SELECT * FROM     logl.entry_with_tombstone
           WHERE     log = $1 AND (timestamp IS NULL OR tombstone IS NULL)
             AND     client_time >= $3 AND client_time <= $4
-            AND    (client_time, uuid) > ( SELECT client_time, uuid
-                                             FROM logl.entry_with_tombstone
-                                            WHERE uuid = $1                 )
+            AND    (client_time, uuid) > (SELECT * FROM cursor_stamp)
        ORDER BY    (client_time, uuid) ASC
           LIMIT     256;
 $$ LANGUAGE sql STRICT;
