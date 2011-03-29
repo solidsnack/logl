@@ -14,6 +14,7 @@ CREATE OR REPLACE FUNCTION "logl#setup"()
 BEGIN
   BEGIN
     CREATE SCHEMA   logl;
+    COMMENT ON SCHEMA logl IS 'v2011-03-29';
     RETURN NEXT    'logl';
   EXCEPTION WHEN duplicate_schema THEN END;
   BEGIN
