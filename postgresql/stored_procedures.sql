@@ -78,7 +78,8 @@ SELECT "logl#setup"();
 CREATE OR REPLACE FUNCTION logl.write_log( uuid, timestamp with time zone,
                                            bytea )
 RETURNS VOID AS $$
-  INSERT INTO logl.log VALUES ($1, $2, $3);
+  INSERT INTO       logl.log
+       VALUES      ($1, $2, $3);
 $$ LANGUAGE sql STRICT;
 
 --  WriteEntry                ::  Entry -> Task ()
@@ -87,20 +88,22 @@ CREATE OR REPLACE FUNCTION logl.write_entry( uuid, uuid,
                                              timestamp with time zone,
                                              bytea, bytea              )
 RETURNS VOID AS $$
-  INSERT INTO logl.entry VALUES ($1, $2, $3, $4, $5, $6);
+  INSERT INTO       logl.entry
+       VALUES      ($1, $2, $3, $4, $5, $6);
 $$ LANGUAGE sql STRICT;
 
 --  WriteTombstone            ::  ID Log -> Task ()
 CREATE OR REPLACE FUNCTION logl.write_tombstone(uuid, timestamp with time zone)
 RETURNS VOID AS $$
-  INSERT INTO logl.tombstone VALUES ($1, $2);
+  INSERT INTO       logl.tombstone
+       VALUES      ($1, $2);
 $$ LANGUAGE sql STRICT;
 
 --  LookupLog                 ::  ID Log -> Task Log
 CREATE OR REPLACE FUNCTION logl.lookup_log(uuid)
 RETURNS SETOF logl.log_with_tombstone AS $$
-  SELECT * FROM logl.log_with_tombstone
-   WHERE uuid = $1 AND (timestamp IS NULL OR tombstone IS NULL);
+  SELECT * FROM     logl.log_with_tombstone
+          WHERE     uuid = $1 AND (timestamp IS NULL OR tombstone IS NULL);
 $$ LANGUAGE sql STRICT;
 
 --  LookupEntry               ::  ID Entry -> Task Entry
@@ -122,12 +125,19 @@ END;
 $$ LANGUAGE plpgsql STRICT;
 
 --  SearchEntries :: ID Log -> (UTCTime, UTCTime) -> ID Entry -> Task [Entry]
---CREATE OR REPLACE FUNCTION logl.search_entries( uuid, uuid,
---                                                timestamp with time zone,
---                                                timestamp with time zone  )
---RETURNS SETOF logl.entry_with_tombstone AS $$
---
---$$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION logl.search_entries( uuid, uuid,
+                                                timestamp with time zone,
+                                                timestamp with time zone  )
+RETURNS SETOF logl.entry_with_tombstone AS $$
+  SELECT * FROM     logl.entry_with_tombstone
+          WHERE     log = $1 AND (timestamp IS NULL OR tombstone IS NULL)
+            AND     client_time >= $3 AND client_time <= $4
+            AND    (client_time, uuid) > ( SELECT client_time, uuid
+                                             FROM logl.entry_with_tombstone
+                                            WHERE uuid = $1                 )
+       ORDER BY    (client_time, uuid) ASC
+          LIMIT     256;
+$$ LANGUAGE sql STRICT;
 
 
 --  Returns entries following a particular entry, in the given time range.
