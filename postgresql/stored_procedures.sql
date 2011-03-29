@@ -132,34 +132,3 @@ RETURNS SETOF logl.entry_with_tombstone AS $$
           LIMIT     256;
 $$ LANGUAGE sql STRICT;
 
-
---  Returns entries following a particular entry, in the given time range.
---  The UUID of the last returned row forms a "natural cursor" that allows
---  the end user to restart their query. If this function returns rows, it
---  returns either log entries or a "tombstone" indicating that the log was
---  destroyed.
---CREATE OR REPLACE FUNCTION
---  logl.search_entries( uuid, uuid, timestamp with time zone
---                                               , timestamp with time zone )
---  RETURNS SETOF  logl.entries_with_bool AS $$
---DECLARE
---  result  logl.entries_with_bool;
---BEGIN
---  SELECT NULL, NULL, NULL, NULL, NULL,  logl.logs.tombstone
---    INTO result
---    FROM  logl.logs
---   WHERE uuid = $1 AND tombstone IS NOT NULL;
---  IF FOUND THEN
---    RETURN NEXT result;
---  ELSE
---    RETURN QUERY SELECT  logl.entries.*,
---                        NULL :: timestamp with time zone
---                   FROM  logl.entries
---                  WHERE log = $1 AND user_time >= $3 AND user_time <= $4
---                    AND uuid > $2
---               ORDER BY (user_time, uuid) ASC
---                  LIMIT 256;
---  END IF;
---END;
---$$ LANGUAGE plpgsql ROWS 256;
-
