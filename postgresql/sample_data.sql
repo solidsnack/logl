@@ -1,12 +1,15 @@
-INSERT INTO logl.log VALUES
+INSERT INTO logl.entry VALUES
   ( 'aaaaaaa0-bbbb-cccc-dddd-eeeeeeeeeeee',
-    '2011-03-20', '2011-03-20', ''          );
-INSERT INTO logl.log VALUES
+    '00000000-0000-0000-0000-000000000000',
+    '2011-03-20', '2011-03-20', '', ''      );
+INSERT INTO logl.entry VALUES
   ( 'aaaaaaa1-bbbb-cccc-dddd-eeeeeeeeeeee',
-    '2011-03-21', '2011-03-21', 'to delete' );
-INSERT INTO logl.log VALUES
+    '00000000-0000-0000-0000-000000000000',
+    '2011-03-21', '2011-03-21', 'del', ''   );
+INSERT INTO logl.entry VALUES
   ( 'aaaaaaa2-bbbb-cccc-dddd-eeeeeeeeeeee',
-    '2011-03-22', '2011-03-22', ''          );
+    '00000000-0000-0000-0000-000000000000',
+    '2011-03-22', '2011-03-22', '', ''      );
 
 INSERT INTO logl.entry VALUES
   ( 'aaaaaaaa-bbb0-cccc-dddd-eeeeeeeeeeee',

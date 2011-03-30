@@ -19,45 +19,23 @@ BEGIN
   EXCEPTION WHEN duplicate_schema THEN END;
   BEGIN
     CREATE TABLE    logl.tombstone
-      ( log         uuid PRIMARY KEY,
+      ( parent      uuid PRIMARY KEY,
         timestamp   timestamp with time zone NOT NULL );
     CREATE INDEX   "tombstone/timestamp" ON logl.tombstone (timestamp);
     RETURN NEXT    'logl.tombstone';
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
-    CREATE TABLE    logl.log
-      ( uuid        uuid PRIMARY KEY,
-        timestamp   timestamp with time zone NOT NULL,
-        client_time timestamp with time zone NOT NULL,
-        tag         bytea CHECK (length(tag) <= 128) NOT NULL );
-    CREATE INDEX   "log/timestamp" ON logl.log (timestamp);
-    CREATE INDEX   "log/tag" ON logl.log (tag);
-    RETURN NEXT    'logl.log';
-  EXCEPTION WHEN duplicate_table THEN END;
-  BEGIN
-    CREATE VIEW     logl.log_with_tombstone AS
-         SELECT     log.*, tombstone.timestamp AS tombstone
-           FROM     logl.log AS log LEFT OUTER JOIN
-             	    logl.tombstone AS tombstone
-             ON    (log.uuid = tombstone.log)
-          UNION
-         SELECT     tombstone.log, NULL, NULL, NULL,
-                    tombstone.timestamp AS tombstone
-           FROM     logl.tombstone AS tombstone;
-    RETURN NEXT    'logl.log_with_tombstone';
-  EXCEPTION WHEN duplicate_table THEN END;
-  BEGIN
     CREATE TABLE    logl.entry
       ( uuid        uuid PRIMARY KEY,
-        log         uuid NOT NULL,
+        parent      uuid NOT NULL,
         timestamp   timestamp with time zone NOT NULL,
         client_time timestamp with time zone NOT NULL,
         tag         bytea CHECK (length(tag) <= 128) NOT NULL,
         bytes       bytea NOT NULL                             );
     CREATE INDEX   "entry/timestamp" ON logl.entry (timestamp);
-    CREATE INDEX   "entry/log,client_time"
-              ON    logl.entry (log,client_time);
-    CREATE INDEX   "entry/log" ON  logl.entry (log);
+    CREATE INDEX   "entry/parent" ON logl.entry (parent);
+    CREATE INDEX   "entry/parent,client_time"
+              ON    logl.entry (parent,client_time);
     RETURN NEXT    'logl.entry';
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
@@ -65,9 +43,9 @@ BEGIN
          SELECT     entry.*, tombstone.timestamp AS tombstone
            FROM     logl.entry AS entry LEFT OUTER JOIN
                     logl.tombstone AS tombstone
-             ON    (entry.log = tombstone.log)
+             ON    (entry.parent = tombstone.parent)
           UNION
-         SELECT     NULL, tombstone.log, NULL, NULL, NULL, NULL,
+         SELECT     NULL, tombstone.parent, NULL, NULL, NULL, NULL,
                     tombstone.timestamp AS tombstone
            FROM     logl.tombstone AS tombstone;
     RETURN NEXT    'logl.entry_with_tombstone';
@@ -75,14 +53,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STRICT;
 SELECT "logl#setup"();
-
---  WriteLog                  ::  Log -> Task ()
-CREATE OR REPLACE FUNCTION logl.write_log( uuid, timestamp with time zone,
-                                           timestamp with time zone, bytea )
-RETURNS VOID AS $$
-  INSERT INTO       logl.log
-       VALUES      ($1, $2, $3, $4);
-$$ LANGUAGE sql STRICT;
 
 --  WriteEntry                ::  Entry -> Task ()
 CREATE OR REPLACE FUNCTION logl.write_entry( uuid, uuid,
@@ -101,36 +71,14 @@ RETURNS VOID AS $$
        VALUES      ($1, $2);
 $$ LANGUAGE sql STRICT;
 
---  LookupLog                 ::  ID Log -> Task Log
-CREATE OR REPLACE FUNCTION logl.lookup_log(uuid)
-RETURNS SETOF logl.log_with_tombstone AS $$
-  SELECT * FROM     logl.log_with_tombstone
-          WHERE     uuid = $1 AND (timestamp IS NULL OR tombstone IS NULL);
-$$ LANGUAGE sql STRICT;
-
 --  LookupEntry               ::  ID Entry -> Task Entry
 CREATE OR REPLACE FUNCTION logl.lookup_entry(uuid)
 RETURNS SETOF logl.entry_with_tombstone AS $$
-  WITH log_uuid AS (SELECT log FROM logl.entry_with_tombstone WHERE uuid = $1)
+  WITH p AS (SELECT parent FROM logl.entry_with_tombstone WHERE uuid = $1)
   SELECT * FROM     logl.entry_with_tombstone
           WHERE    (uuid = $1 AND tombstone IS NULL)
-             OR    (timestamp IS NULL AND log = (SELECT * FROM log_uuid));
+             OR    (timestamp IS NULL AND parent = (SELECT * FROM p));
 $$ LANGUAGE sql STRICT;
-
---  SearchLogs :: Set (ID Log) -> (UTCTime, UTCTime) -> Tag -> Task (Set (Log))
---CREATE OR REPLACE FUNCTION logl.search_logs(uuid, uuid)
---RETURNS SETOF logl.log_with_tombstone AS $$
---  WITH              cursor_stamp AS ( SELECT client_time, uuid
---                                        FROM logl.entry_with_tombstone
---                                       WHERE uuid = $1                 )
---  SELECT * FROM     logl.log_with_tombstone
---          WHERE     log = $1 AND (timestamp IS NULL OR tombstone IS NULL)
---            AND     client_time >= $4 AND client_time <= $5
---            AND     POSITION($3 IN tag) = 1
---            AND    (client_time, uuid) > (SELECT * FROM cursor_stamp)
---       ORDER BY    (client_time, uuid) ASC
---          LIMIT     256;
---$$ LANGUAGE sql STRICT;
 
 --  SearchEntries :: ID Log -> ID Entry -> (UTCTime, UTCTime) -> Tag
 --                -> Task (Set Entry)
@@ -142,7 +90,7 @@ RETURNS SETOF logl.entry_with_tombstone AS $$
                                         FROM logl.entry_with_tombstone
                                        WHERE uuid = $1                 )
   SELECT * FROM     logl.entry_with_tombstone
-          WHERE     log = $1 AND (timestamp IS NULL OR tombstone IS NULL)
+          WHERE     parent = $1 AND (timestamp IS NULL OR tombstone IS NULL)
             AND     client_time >= $4 AND client_time <= $5
             AND     POSITION($3 IN tag) = 1
             AND    (client_time, uuid) > (SELECT * FROM cursor_stamp)
