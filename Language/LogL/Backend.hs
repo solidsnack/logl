@@ -12,7 +12,12 @@ import Control.Concurrent
 import Control.Exception
 import Control.Monad
 import Data.ByteString.Char8 (ByteString)
-import Data.List
+import Data.Graph (Graph)
+import qualified Data.Graph as Graph
+import qualified Data.List as List
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Monoid
 import Data.Time.Clock
 import Data.Word
 import System.IO.Error
@@ -24,25 +29,38 @@ import qualified Language.LogL.Pickle as Pickle
 import qualified Language.LogL.Macros as Macros
 
 
-data Envelope i where
+data Envelope i t where
   Envelope :: (Backend i) ---------------------------------------------
-           => !UTCTime -> !UTCTime -> Info i -> Result -> Envelope i
+           => !UTCTime -> !UTCTime -> Info i -> Status t -> Envelope i
 
-{-| A search may failure or it may return a result.
+{-| A search may fail or it may return a result.
+  -}
+data Status                  =  forall t. OK !t | ERROR
+
+{-| A result set contains an ordered list of entries found along with any
+    tombstones.
  -}
-data Status                  =  forall t. OK !(Result t) | ERROR
-
-{-| A result may be a value, the absence of any information relating to this
-    value or a tombstone, indicating the value is deleted. 
- -}
-data ResultSet               =  ResultSet { found :: Set t
-                                          , tombstones :: Map (ID t) UTCTime }
-instance Monoid (ResultSet t) where
-  NoInfo `mappend` anything_else               =  anything_else
-  tombstone@(Tombstone _ _) `mappend` _        =  tombstone
-  found@(Found _) `mappend` Found _            =  found
-
-data TombstoneFunction t = Tombstone
+data ResultSet               =  ResultSet { found :: [Entry]
+                                          , tombstones :: Map ID UTCTime }
+instance Monoid ResultSet where
+  mempty                     =  ResultSet [] mempty
+  ResultSet l m `mappend` ResultSet l' m' =
+    ResultSet (List.union (l /! m') (l' /! m)) (m `mappend` m')
+   where
+    list /! map = List.filter (`Map.notMember` map) list
+  --  In using this instance, I assume no duplicates in the input lists and
+  --  that I have previously checked that elements of the right result set
+  --  come "after" those of the left result set. Overlap like this is okay:
+  --
+  --    0 - 3 - 4 - 6 - 7
+  --                6 - 7 - 11 - 21
+  --
+  --  Overlap like this is not okay:
+  --
+  --    0 - 3 - 4 - 6 - 7
+  --               5 -  7 - 11 - 21
+  --
+  --  This invariant is likely better enforced with tree types.
 
 {-| Backends support a few tasks, allowing us to set, delete and retrieve logs
     and log entries. Backends are completely permissive as regards
@@ -50,22 +68,14 @@ data TombstoneFunction t = Tombstone
     come from the interpreter layer, which manages the IDs.
  -}
 data Task where
-  WriteLog                  ::  Log -> Task ()
-  WriteEntry                ::  Entry -> Task ()
-  WriteTombstone            ::  ID Log -> Task ()
-  LookupLog                 ::  ID Log -> Task Log
-  LookupEntry               ::  ID Log -> ID Entry -> Task Entry
-  EntrySearch               ::  ID Log -> ID Entry -> (UTCTime, UTCTime)
-                            ->  Task [Entry]
-  LogTagSearch              ::  ByteString128 -> [ID Log] -> Task [ID Log]
---data Task                    =  SetLog !(ID Log) !UTCTime
---                             |  SetEntry !(ID Log) !(ID Entry) !UTCTime
---                             |  GetLog !(ID Log)
---                             |  GetEntry !(ID Log) !(ID Entry)
---                             |  DeleteLog !(ID Log)
---                             |  DeleteEntry !(ID Log) !(ID Entry)
---                             |  EntryTimeRangeSearch !(ID Log)
---                             |  LogTagSearch !ByteString128 [ID Log]
+  WriteEntries              ::  !Entry -> Task ()
+  WriteTombstone            ::  !ID -> Task ()
+  SomeLeaves                ::  !ID -> Task ResultSet
+  SomeParents               ::  !ID -> Task ResultSet
+--  Post                      ::  !ID -> !Message -> LogL ID
+--  Free                      ::  !ID -> LogL ()
+--  Leaves                    ::  !ID -> LogL [Entry]
+--  Chain                     ::  !ID -> !ID -> LogL [Entry]
 
 
 class Backend backend where
