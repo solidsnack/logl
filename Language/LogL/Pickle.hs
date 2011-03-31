@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings
+           , TypeSynonymInstances
   #-}
 module Language.LogL.Pickle where
 
