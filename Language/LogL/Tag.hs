@@ -9,6 +9,8 @@ import Data.String
 import Data.Word
 import Prelude hiding (length, take, max)
 
+import qualified Data.ByteString.UTF8 as UTF8
+
 import Language.LogL.Pickle
 
 
@@ -19,7 +21,11 @@ newtype Tag                  =  Tag ByteString
 deriving instance Eq Tag
 deriving instance Ord Tag
 deriving instance Show Tag
-deriving instance IsString Tag
+instance IsString Tag where
+  fromString s               =  maybe (error msg) id (i b)
+   where
+    b                        =  UTF8.fromString s
+    msg = "Tags may not be longer than " ++ show max ++ " bytes."
 instance Monoid Tag where
   mempty                     =  ""
   Tag b `mappend` Tag b'     =  (Tag . take casted) (b `mappend` b')
