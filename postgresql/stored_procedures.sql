@@ -61,10 +61,10 @@ $$ LANGUAGE plpgsql STRICT;
 SELECT "logl#setup"();
 
 --  WriteEntry              ::  !Entry -> Task ()
-CREATE OR REPLACE FUNCTION logl.WriteEntry( uuid, uuid,
-                                            timestamp with time zone,
-                                            timestamp with time zone,
-                                            bytea, bytea              )
+CREATE OR REPLACE FUNCTION logl.write_entry( uuid, uuid,
+                                             timestamp with time zone,
+                                             timestamp with time zone,
+                                             bytea, bytea              )
 RETURNS VOID AS $$
 BEGIN
   INSERT INTO       logl.entry                    VALUES ($1, $3, $4, $5, $6);
@@ -73,7 +73,7 @@ EXCEPTION WHEN unique_violation THEN END;
 $$ LANGUAGE plpgsql STRICT;
 
 --  WriteTombstone          ::  !ID -> Task ()
-CREATE OR REPLACE FUNCTION logl.WriteTombstone(uuid, timestamp with time zone)
+CREATE OR REPLACE FUNCTION logl.write_tombstone(uuid, timestamp with time zone)
 RETURNS VOID AS $$
 BEGIN
   INSERT INTO       logl.tombstone                VALUES ($1, $2);
@@ -81,13 +81,35 @@ EXCEPTION WHEN unique_violation THEN END;
 $$ LANGUAGE plpgsql STRICT;
 
 --  SomeLeaves              ::  !ID -> Task Children
---CREATE OR REPLACE FUNCTION logl.SomeLeaves(uuid)
---RETURNS SETOF logl.entry_with_tombstone AS $$
---  WITH p AS (SELECT parent FROM logl.entry_with_tombstone WHERE uuid = $1)
---  SELECT * FROM     logl.entry_with_tombstone
---          WHERE    (uuid = $1 AND tombstone IS NULL)
---             OR    (timestamp IS NULL AND parent = (SELECT * FROM p));
---$$ LANGUAGE plpgsql STRICT;
+CREATE OR REPLACE FUNCTION logl.some_leaves(uuid)
+RETURNS SETOF logl.entry AS $$
+DECLARE
+  root uuid;
+  roots uuid[] = ARRAY[$1];
+  next_roots uuid[];
+  leaves uuid[];
+BEGIN -- Does not handle cycles at all.
+  LOOP
+    IF roots = ARRAY[] THEN
+      EXIT;
+    END IF;
+    next_roots := ARRAY[];
+    FOR root IN SELECT * FROM unnest(roots) LOOP
+      IF NOT EXISTS (SELECT 1 FROM logl.tombstones WHERE entry = root) THEN
+        SELECT ARRAY( SELECT child FROM logl.parent_to_children
+                                  WHERE parent = root           )
+          INTO leaves;
+        IF leaves = ARRAY[] THEN
+          RETURN QUERY SELECT * FROM logl.entries WHERE uuid = root;
+        ELSE
+          next_roots := next_roots || leaves;
+        END IF;
+      END IF;
+    END LOOP;
+    roots := next_roots;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql STRICT;
 
 --  ParentsBelow            ::  !ID -> !ID -> Task Parents
 --CREATE OR REPLACE FUNCTION logl.ParentsBelow(uuid, uuid)
