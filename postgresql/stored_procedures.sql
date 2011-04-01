@@ -18,83 +18,89 @@ BEGIN
     RETURN NEXT    'logl';
   EXCEPTION WHEN duplicate_schema THEN END;
   BEGIN
-    CREATE TABLE    logl.tombstone
-      ( parent      uuid PRIMARY KEY,
-        timestamp   timestamp with time zone NOT NULL );
-    CREATE INDEX   "tombstone/timestamp" ON logl.tombstone (timestamp);
-    RETURN NEXT    'logl.tombstone';
-  EXCEPTION WHEN duplicate_table THEN END;
-  BEGIN
     CREATE TABLE    logl.entry
       ( uuid        uuid PRIMARY KEY,
-        parent      uuid NOT NULL,
         timestamp   timestamp with time zone NOT NULL,
         client_time timestamp with time zone NOT NULL,
         tag         bytea CHECK (length(tag) <= 128) NOT NULL,
         bytes       bytea NOT NULL                             );
     CREATE INDEX   "entry/timestamp" ON logl.entry (timestamp);
-    CREATE INDEX   "entry/parent" ON logl.entry (parent);
-    CREATE INDEX   "entry/parent,client_time"
-              ON    logl.entry (parent,client_time);
+    CREATE INDEX   "entry/tag" ON logl.entry (tag);
+    CREATE INDEX   "entry/client_time" ON logl.entry (client_time);
+    COMMENT ON TABLE logl.entry IS 'Basic data for individual entries.';
     RETURN NEXT    'logl.entry';
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
-    CREATE VIEW     logl.entry_with_tombstone AS
-         SELECT     entry.*, tombstone.timestamp AS tombstone
-           FROM     logl.entry AS entry LEFT OUTER JOIN
-                    logl.tombstone AS tombstone
-             ON    (entry.parent = tombstone.parent)
-          UNION
-         SELECT     NULL, tombstone.parent, NULL, NULL, NULL, NULL,
-                    tombstone.timestamp AS tombstone
-           FROM     logl.tombstone AS tombstone;
-    RETURN NEXT    'logl.entry_with_tombstone';
+    CREATE TABLE    logl.tombstone
+      ( entry       uuid PRIMARY KEY,
+        timestamp   timestamp with time zone NOT NULL );
+    CREATE INDEX   "tombstone/timestamp" ON logl.tombstone (timestamp);
+    COMMENT ON TABLE logl.tombstone IS
+      'Trees below which data is no longer live.';
+    RETURN NEXT    'logl.tombstone';
+  EXCEPTION WHEN duplicate_table THEN END;
+  BEGIN
+    CREATE TABLE    logl.child_to_parent
+      ( child       uuid PRIMARY KEY REFERENCES logl.entry ON DELETE CASCADE,
+        parent      uuid NOT NULL                                             );
+    CREATE INDEX   "child_to_parent/parent" ON logl.child_to_parent (parent);
+    COMMENT ON TABLE logl.child_to_parent IS
+      'Relates a child to its immediate parent.';
+    RETURN NEXT    'logl.entry';
+  EXCEPTION WHEN duplicate_table THEN END;
+  BEGIN
+    -- We already have an index for this is in child_to_parent so no need to
+    -- create a fresh table.
+    CREATE VIEW     logl.parent_to_children AS
+         SELECT     parent, child
+           FROM     logl.child_to_parent;
+    RETURN NEXT    'logl.parent_to_children';
   EXCEPTION WHEN duplicate_table THEN END;
 END;
 $$ LANGUAGE plpgsql STRICT;
 SELECT "logl#setup"();
 
---  WriteEntry                ::  Entry -> Task ()
-CREATE OR REPLACE FUNCTION logl.write_entry( uuid, uuid,
-                                             timestamp with time zone,
-                                             timestamp with time zone,
-                                             bytea, bytea              )
+--  WriteEntry              ::  !Entry -> Task ()
+CREATE OR REPLACE FUNCTION logl.WriteEntry( uuid, uuid,
+                                            timestamp with time zone,
+                                            timestamp with time zone,
+                                            bytea, bytea              )
 RETURNS VOID AS $$
-  INSERT INTO       logl.entry
-       VALUES      ($1, $2, $3, $4, $5, $6);
-$$ LANGUAGE sql STRICT;
+BEGIN
+  INSERT INTO       logl.entry                    VALUES ($1, $3, $4, $5, $6);
+  INSERT INTO       logl.child_to_parent          VALUES ($1, $2);
+EXCEPTION WHEN unique_violation THEN END;
+$$ LANGUAGE plpgsql STRICT;
 
---  WriteTombstone            ::  ID Log -> Task ()
-CREATE OR REPLACE FUNCTION logl.write_tombstone(uuid, timestamp with time zone)
+--  WriteTombstone          ::  !ID -> Task ()
+CREATE OR REPLACE FUNCTION logl.WriteTombstone(uuid, timestamp with time zone)
 RETURNS VOID AS $$
-  INSERT INTO       logl.tombstone
-       VALUES      ($1, $2);
-$$ LANGUAGE sql STRICT;
+BEGIN
+  INSERT INTO       logl.tombstone                VALUES ($1, $2);
+EXCEPTION WHEN unique_violation THEN END;
+$$ LANGUAGE plpgsql STRICT;
 
---  LookupEntry               ::  ID Entry -> Task Entry
-CREATE OR REPLACE FUNCTION logl.lookup_entry(uuid)
-RETURNS SETOF logl.entry_with_tombstone AS $$
-  WITH p AS (SELECT parent FROM logl.entry_with_tombstone WHERE uuid = $1)
-  SELECT * FROM     logl.entry_with_tombstone
-          WHERE    (uuid = $1 AND tombstone IS NULL)
-             OR    (timestamp IS NULL AND parent = (SELECT * FROM p));
-$$ LANGUAGE sql STRICT;
+--  SomeLeaves              ::  !ID -> Task Children
+--CREATE OR REPLACE FUNCTION logl.SomeLeaves(uuid)
+--RETURNS SETOF logl.entry_with_tombstone AS $$
+--  WITH p AS (SELECT parent FROM logl.entry_with_tombstone WHERE uuid = $1)
+--  SELECT * FROM     logl.entry_with_tombstone
+--          WHERE    (uuid = $1 AND tombstone IS NULL)
+--             OR    (timestamp IS NULL AND parent = (SELECT * FROM p));
+--$$ LANGUAGE plpgsql STRICT;
 
---  SearchEntries :: ID Log -> ID Entry -> (UTCTime, UTCTime) -> Tag
---                -> Task (Set Entry)
-CREATE OR REPLACE FUNCTION logl.search_entries( uuid, uuid, bytea,
-                                                timestamp with time zone,
-                                                timestamp with time zone  )
-RETURNS SETOF logl.entry_with_tombstone AS $$
-  WITH              cursor_stamp AS ( SELECT client_time, uuid
-                                        FROM logl.entry_with_tombstone
-                                       WHERE uuid = $1                 )
-  SELECT * FROM     logl.entry_with_tombstone
-          WHERE     parent = $1 AND (timestamp IS NULL OR tombstone IS NULL)
-            AND     client_time >= $4 AND client_time <= $5
-            AND     POSITION($3 IN tag) = 1
-            AND    (client_time, uuid) > (SELECT * FROM cursor_stamp)
-       ORDER BY    (client_time, uuid) ASC
-          LIMIT     256;
-$$ LANGUAGE sql STRICT;
+--  ParentsBelow            ::  !ID -> !ID -> Task Parents
+--CREATE OR REPLACE FUNCTION logl.ParentsBelow(uuid, uuid)
+--RETURNS SETOF logl.entry_with_tombstone AS $$
+--  WITH              cursor_stamp AS ( SELECT client_time, uuid
+--                                        FROM logl.entry_with_tombstone
+--                                       WHERE uuid = $1                 )
+--  SELECT * FROM     logl.entry_with_tombstone
+--          WHERE     parent = $1 AND (timestamp IS NULL OR tombstone IS NULL)
+--            AND     client_time >= $4 AND client_time <= $5
+--            AND     POSITION($3 IN tag) = 1
+--            AND    (client_time, uuid) > (SELECT * FROM cursor_stamp)
+--       ORDER BY    (client_time, uuid) ASC
+--          LIMIT     256;
+--$$ LANGUAGE sql STRICT;
 

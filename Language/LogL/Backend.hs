@@ -29,9 +29,24 @@ import qualified Language.LogL.Pickle as Pickle
 import qualified Language.LogL.Macros as Macros
 
 
+{-| Backends support a few tasks, allowing us to set, delete and retrieve logs
+    and log entries. Backends are completely permissive as regards
+    over-writing existing entries and so forth -- single-assignment invariants
+    come from the interpreter layer, which manages the IDs.
+ -}
+data Task where
+  WriteEntry                ::  !Entry -> Task ()
+  WriteTombstone            ::  !ID -> Task ()
+  SomeLeaves                ::  !ID -> Task Children
+  ParentsBelow              ::  !ID -> !ID -> Task Parents
+--  Post                      ::  !ID -> !Message -> LogL ID
+--  Free                      ::  !ID -> LogL ()
+--  Leaves                    ::  !ID -> LogL [Entry]
+--  Chain                     ::  !ID -> !ID -> LogL [Entry]
+
 data Envelope i t where
   Envelope :: (Backend i) ---------------------------------------------
-           => !UTCTime -> !UTCTime -> Info i -> Status t -> Envelope i
+           => !UTCTime -> !UTCTime -> Info i -> Status t -> Envelope i t
 
 {-| A search may fail or it may return a result.
   -}
@@ -61,22 +76,6 @@ instance Monoid ResultSet where
   --               5 -  7 - 11 - 21
   --
   --  This invariant is likely better enforced with tree types.
-
-{-| Backends support a few tasks, allowing us to set, delete and retrieve logs
-    and log entries. Backends are completely permissive as regards
-    over-writing existing entries and so forth -- single-assignment invariants
-    come from the interpreter layer, which manages the IDs.
- -}
-data Task where
-  WriteEntries              ::  !Entry -> Task ()
-  WriteTombstone            ::  !ID -> Task ()
-  SomeLeaves                ::  !ID -> Task ResultSet
-  SomeParents               ::  !ID -> Task ResultSet
---  Post                      ::  !ID -> !Message -> LogL ID
---  Free                      ::  !ID -> LogL ()
---  Leaves                    ::  !ID -> LogL [Entry]
---  Chain                     ::  !ID -> !ID -> LogL [Entry]
-
 
 class Backend backend where
   type Info backend         ::  *
