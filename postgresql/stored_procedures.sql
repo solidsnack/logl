@@ -18,6 +18,18 @@ BEGIN
     RETURN NEXT    'logl';
   EXCEPTION WHEN duplicate_schema THEN END;
   BEGIN
+    CREATE TABLE    logl.log
+      ( uuid        uuid PRIMARY KEY,
+        timestamp   timestamp with time zone NOT NULL,
+        client_time timestamp with time zone NOT NULL,
+        tag         bytea CHECK (length(tag) <= 128) NOT NULL );
+    CREATE INDEX   "log/timestamp" ON logl.log (timestamp);
+    CREATE INDEX   "log/tag" ON logl.log (tag);
+    CREATE INDEX   "log/client_time" ON logl.log (client_time);
+    COMMENT ON TABLE logl.log IS 'A log is the root of an entry tree.';
+    RETURN NEXT    'logl.log';
+  EXCEPTION WHEN duplicate_table THEN END;
+  BEGIN
     CREATE TABLE    logl.entry
       ( uuid        uuid PRIMARY KEY,
         timestamp   timestamp with time zone NOT NULL,
@@ -32,47 +44,59 @@ BEGIN
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
     CREATE TABLE    logl.tombstone
-      ( entry       uuid PRIMARY KEY,
-        timestamp   timestamp with time zone NOT NULL );
+      ( log         uuid PRIMARY KEY REFERENCES logl.log ON DELETE CASCADE,
+        timestamp   timestamp with time zone NOT NULL                       );
     CREATE INDEX   "tombstone/timestamp" ON logl.tombstone (timestamp);
     COMMENT ON TABLE logl.tombstone IS
-      'Trees below which data is no longer live.';
+      'Logs below which data is no longer live.';
     RETURN NEXT    'logl.tombstone';
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
-    CREATE TABLE    logl.child_to_parent
+    CREATE TABLE    logl.pointers
       ( child       uuid PRIMARY KEY REFERENCES logl.entry ON DELETE CASCADE,
+        log         uuid REFERENCES logl.log,
         parent      uuid NOT NULL                                             );
-    CREATE INDEX   "child_to_parent/parent" ON logl.child_to_parent (parent);
-    COMMENT ON TABLE logl.child_to_parent IS
-      'Relates a child to its immediate parent.';
-    RETURN NEXT    'logl.entry';
+    CREATE INDEX   "pointers/parent" ON logl.pointers (parent);
+    CREATE INDEX   "pointers/log" ON logl.pointers (log);
+    COMMENT ON TABLE logl.pointers IS
+      'Relates an entry to its log and its immediate parent.';
+    RETURN NEXT    'logl.pointers';
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
-    -- We already have an index for this is in child_to_parent so no need to
+    -- We already have an index for this is in pointers so no need to
     -- create a fresh table.
     CREATE VIEW     logl.parent_to_children AS
          SELECT     parent, child
-           FROM     logl.child_to_parent;
+           FROM     logl.pointers;
     RETURN NEXT    'logl.parent_to_children';
   EXCEPTION WHEN duplicate_table THEN END;
 END;
 $$ LANGUAGE plpgsql STRICT;
 SELECT "logl#setup"();
 
---  WriteEntry              ::  !Entry -> Task ()
-CREATE OR REPLACE FUNCTION logl.write_entry( uuid, uuid,
+--  WriteLog                ::  Log -> Task ()
+CREATE OR REPLACE FUNCTION logl.write_log( uuid, timestamp with time zone,
+                                                 timestamp with time zone,
+                                                 bytea                     )
+RETURNS VOID AS $$
+BEGIN
+  INSERT INTO       logl.log                      VALUES ($1, $2, $3, $4, $5);
+EXCEPTION WHEN unique_violation THEN END;
+$$ LANGUAGE plpgsql STRICT;
+
+--  WriteEntry              ::  ID Log -> ID Entry -> Entry -> Task ()
+CREATE OR REPLACE FUNCTION logl.write_entry( uuid, uuid, uuid,
                                              timestamp with time zone,
                                              timestamp with time zone,
                                              bytea, bytea              )
 RETURNS VOID AS $$
 BEGIN
-  INSERT INTO       logl.entry                    VALUES ($1, $3, $4, $5, $6);
-  INSERT INTO       logl.child_to_parent          VALUES ($1, $2);
+  INSERT INTO       logl.entry                    VALUES ($1, $4, $5, $6, $7);
+  INSERT INTO       logl.pointers                 VALUES ($1, $2, $3);
 EXCEPTION WHEN unique_violation THEN END;
 $$ LANGUAGE plpgsql STRICT;
 
---  WriteTombstone          ::  !ID -> Task ()
+--  WriteTombstone          ::  ID Log -> Task ()
 CREATE OR REPLACE FUNCTION logl.write_tombstone(uuid, timestamp with time zone)
 RETURNS VOID AS $$
 BEGIN
@@ -81,37 +105,70 @@ EXCEPTION WHEN unique_violation THEN END;
 $$ LANGUAGE plpgsql STRICT;
 
 --  SomeLeaves              ::  !ID -> Task Children
-CREATE OR REPLACE FUNCTION logl.some_leaves(uuid)
-RETURNS SETOF logl.entry AS $$
-DECLARE
-  root uuid;
-  roots uuid[] = ARRAY[$1];
-  next_roots uuid[];
-  leaves uuid[];
-BEGIN -- Does not handle cycles at all.
-  LOOP
-    IF roots = ARRAY[] THEN
-      EXIT;
-    END IF;
-    next_roots := ARRAY[];
-    FOR root IN SELECT * FROM unnest(roots) LOOP
-      IF NOT EXISTS (SELECT 1 FROM logl.tombstones WHERE entry = root) THEN
-        SELECT ARRAY( SELECT child FROM logl.parent_to_children
-                                  WHERE parent = root           )
-          INTO leaves;
-        IF leaves = ARRAY[] THEN
-          RETURN QUERY SELECT * FROM logl.entries WHERE uuid = root;
-        ELSE
-          next_roots := next_roots || leaves;
-        END IF;
-      END IF;
-    END LOOP;
-    roots := next_roots;
-  END LOOP;
-END;
-$$ LANGUAGE plpgsql STRICT;
+--CREATE OR REPLACE FUNCTION logl.some_leaves(uuid)
+--RETURNS SETOF logl.entry AS $$
+--DECLARE
+--  root uuid;
+--  roots uuid[] = ARRAY[$1];
+--  next_roots uuid[];
+--  leaves uuid[];
+--BEGIN
+--  LOOP
+--    IF roots = ARRAY[] THEN
+--      EXIT;
+--    END IF;
+--    next_roots := ARRAY[];
+--    FOR root IN SELECT * FROM unnest(roots) LOOP
+--      IF NOT EXISTS (SELECT 1 FROM logl.tombstones WHERE entry = root) THEN
+--        SELECT ARRAY( SELECT child FROM logl.parent_to_children
+--                                  WHERE parent = root           )
+--          INTO leaves;
+--        IF NOT FOUND THEN
+--          RETURN QUERY SELECT * FROM logl.entries WHERE uuid = root;
+--        ELSE
+--          next_roots := next_roots || leaves;
+--        END IF;
+--      END IF;
+--    END LOOP;
+--    roots := next_roots;
+--  END LOOP;
+--END;
+--$$ LANGUAGE plpgsql STRICT;
 
 --  ParentsBelow            ::  !ID -> !ID -> Task Parents
+--CREATE OR REPLACE FUNCTION logl.parents_below(uuid, uuid)
+--RETURNS SETOF logl.entry AS $$
+--DECLARE
+--  old_leaf uuid := $2;
+--  new_leaf uuid;
+--BEGIN  -- Does not handle cycles at all.
+--  LOOP
+--    SELECT parent FROM logl.child_to_parent
+--                 WHERE child = old_leaf
+--                  INTO new_leaf;
+--    IF FOUND THEN
+--      RETURN NEXT old_leaf;
+--    END IF;
+--    IF roots = ARRAY[] THEN
+--      EXIT;
+--    END IF;
+--    next_roots := ARRAY[];
+--    FOR root IN SELECT * FROM unnest(roots) LOOP
+--      IF NOT EXISTS (SELECT 1 FROM logl.tombstones WHERE entry = root) THEN
+--        SELECT ARRAY( SELECT child FROM logl.parent_to_children
+--                                  WHERE parent = root           )
+--          INTO leaves;
+--        IF NOT FOUND THEN
+--          RETURN QUERY SELECT * FROM logl.entries WHERE uuid = root;
+--        ELSE
+--          next_roots := next_roots || leaves;
+--        END IF;
+--      END IF;
+--    END LOOP;
+--    roots := next_roots;
+--  END LOOP;
+--END;
+--$$ LANGUAGE plpgsql STRICT;
 --CREATE OR REPLACE FUNCTION logl.ParentsBelow(uuid, uuid)
 --RETURNS SETOF logl.entry_with_tombstone AS $$
 --  WITH              cursor_stamp AS ( SELECT client_time, uuid

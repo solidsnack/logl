@@ -14,21 +14,27 @@ import qualified Language.LogL.UUID as UUID
 
 
 data LogL t where
-  Post                      ::  !ID -> !Message -> LogL ID
-  Free                      ::  !ID -> LogL ()
-  Leaves                    ::  !ID -> LogL [Entry]
-  Chain                     ::  !ID -> !ID -> LogL [Entry]
+  Alloc                     ::  Log -> LogL (ID Log)
+  Append :: ID Log -> ID Entry -> Message -> LogL (ID Entry)
+  Free                      ::  ID Log -> LogL ()
+  Subtree                   ::  ID Log -> ID Entry -> LogL [Entry]
+  Chain                     ::  ID Log -> ID Entry -> ID Entry -> LogL [Entry]
 
-data Entry                   =  Entry !ID !ID !UTCTime !Tag !UTCTime
-                                      !ByteString
+data Log                     =  Log !(ID Log) !UTCTime !Tag !UTCTime
+deriving instance Eq Log
+deriving instance Ord Log
+deriving instance Show Log
+
+data Entry                   =  Entry !(ID Entry) !(ID Entry) !(ID Entry)
+                                      !UTCTime !Tag !UTCTime !ByteString
 deriving instance Eq Entry
 deriving instance Ord Entry
 deriving instance Show Entry
 
-newtype ID                   =  ID UUID.V1
-deriving instance Eq ID
-deriving instance Ord ID
-deriving instance Show ID
+data ID t                    =  ID !UUID.V1
+deriving instance Eq (ID t)
+deriving instance Ord (ID t)
+deriving instance Show (ID t)
 
 data Message                 =  Message !Tag !UTCTime !ByteString
 deriving instance Eq Message
