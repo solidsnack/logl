@@ -23,8 +23,13 @@ deriving instance Eq Log
 deriving instance Ord Log
 deriving instance Show Log
 
-data Entry                   =  Entry !(ID Entry) !(ID Entry) !(ID Entry)
-                                      !UTCTime !Tag !UTCTime !ByteString
+data Entry                   =  Entry { log         :: !(ID Log),
+                                        parent      :: !(ID Entry),
+                                        uuid        :: !(ID Entry),
+                                        timestamp   :: !UTCTime,
+                                        tag         :: !Tag,
+                                        client_time :: !UTCTime,
+                                        bytes       :: !ByteString }
 deriving instance Eq Entry
 deriving instance Ord Entry
 deriving instance Show Entry
