@@ -6,17 +6,19 @@ module Language.LogL.Syntax where
 import Data.ByteString.Char8
 import Data.Time.Clock
 import Data.Time.Format()
+import Data.Tree
+import Data.Vector
 
 import Language.LogL.Tag (Tag)
 import qualified Language.LogL.UUID as UUID
 
 
 data LogL t where
-  Alloc                     ::  Log -> LogL (ID Log)
-  Append :: ID Log -> ID Entry -> Message -> LogL (ID Entry)
-  Free                      ::  ID Log -> LogL ()
-  Subtree                   ::  ID Log -> ID Entry -> LogL [Entry]
-  Chain                     ::  ID Log -> ID Entry -> ID Entry -> LogL [Entry]
+  Alloc         ::  Log -> LogL (ID Log)
+  Append        ::  ID Log -> ID Entry -> Message -> LogL (ID Entry)
+  Free          ::  ID Log -> LogL ()
+  Subtree       ::  ID Log -> ID Entry -> LogL (Tree Entry)
+--Chain         ::  ID Log -> ID Entry -> ID Entry -> LogL (Vector Entry)
 
 data Log                     =  Log !(ID Log) !UTCTime !Tag !UTCTime
 deriving instance Eq Log
