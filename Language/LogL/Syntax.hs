@@ -1,6 +1,4 @@
-{-# LANGUAGE OverloadedStrings
-           , StandaloneDeriving
-           , DisambiguateRecordFields
+{-# LANGUAGE StandaloneDeriving
            , GADTs
   #-}
 module Language.LogL.Syntax where
