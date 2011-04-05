@@ -8,10 +8,12 @@ SELECT CASE WHEN EXISTS ( SELECT 1 FROM pg_catalog.pg_language
             ELSE make_plpgsql() END;
 DROP FUNCTION make_plpgsql();
 
---  Idempotent setup of schema, tables and types.
+
+--  Idempotent setup of schema, tables and views.
 CREATE OR REPLACE FUNCTION "logl#setup"()
   RETURNS SETOF text AS $$
 BEGIN
+  SET LOCAL client_min_messages = WARNING;
   BEGIN
     CREATE SCHEMA   logl;
     COMMENT ON SCHEMA logl IS 'v2011-03-29';
