@@ -72,9 +72,23 @@ BEGIN
            FROM     logl.pointers;
     RETURN NEXT    'logl.parent_to_children';
   EXCEPTION WHEN duplicate_table THEN END;
+  BEGIN
+    -- We already have an index for this is in pointers so no need to
+    -- create a fresh table.
+    CREATE VIEW     logl.entry_with_backedge AS
+         SELECT     parent, logl.entry.*
+           FROM     logl.pointers, logl.entry
+          WHERE     uuid = child;
+    RETURN NEXT    'logl.parent_to_children';
+  EXCEPTION WHEN duplicate_table THEN END;
 END;
 $$ LANGUAGE plpgsql STRICT;
 SELECT "logl#setup"();
+
+
+--  Stored procedures for accessing the tables. The foriegn key constraint on
+--  pointers and tombstones assures we can not write data for logs that are
+--  not known to this node.
 
 --  WriteLog                ::  Log -> Task ()
 CREATE OR REPLACE FUNCTION logl.write_log( uuid, timestamp with time zone,
@@ -106,82 +120,35 @@ BEGIN
 EXCEPTION WHEN unique_violation THEN END;
 $$ LANGUAGE plpgsql STRICT;
 
---  SomeLeaves              ::  !ID -> Task Children
---CREATE OR REPLACE FUNCTION logl.some_leaves(uuid)
---RETURNS SETOF logl.entry AS $$
---DECLARE
---  root uuid;
---  roots uuid[] = ARRAY[$1];
---  next_roots uuid[];
---  leaves uuid[];
---BEGIN
---  LOOP
---    IF roots = ARRAY[] THEN
---      EXIT;
---    END IF;
---    next_roots := ARRAY[];
---    FOR root IN SELECT * FROM unnest(roots) LOOP
---      IF NOT EXISTS (SELECT 1 FROM logl.tombstones WHERE entry = root) THEN
---        SELECT ARRAY( SELECT child FROM logl.parent_to_children
---                                  WHERE parent = root           )
---          INTO leaves;
---        IF NOT FOUND THEN
---          RETURN QUERY SELECT * FROM logl.entries WHERE uuid = root;
---        ELSE
---          next_roots := next_roots || leaves;
---        END IF;
---      END IF;
---    END LOOP;
---    roots := next_roots;
---  END LOOP;
---END;
---$$ LANGUAGE plpgsql STRICT;
-
---  ParentsBelow            ::  !ID -> !ID -> Task Parents
---CREATE OR REPLACE FUNCTION logl.parents_below(uuid, uuid)
---RETURNS SETOF logl.entry AS $$
---DECLARE
---  old_leaf uuid := $2;
---  new_leaf uuid;
---BEGIN  -- Does not handle cycles at all.
---  LOOP
---    SELECT parent FROM logl.child_to_parent
---                 WHERE child = old_leaf
---                  INTO new_leaf;
---    IF FOUND THEN
---      RETURN NEXT old_leaf;
---    END IF;
---    IF roots = ARRAY[] THEN
---      EXIT;
---    END IF;
---    next_roots := ARRAY[];
---    FOR root IN SELECT * FROM unnest(roots) LOOP
---      IF NOT EXISTS (SELECT 1 FROM logl.tombstones WHERE entry = root) THEN
---        SELECT ARRAY( SELECT child FROM logl.parent_to_children
---                                  WHERE parent = root           )
---          INTO leaves;
---        IF NOT FOUND THEN
---          RETURN QUERY SELECT * FROM logl.entries WHERE uuid = root;
---        ELSE
---          next_roots := next_roots || leaves;
---        END IF;
---      END IF;
---    END LOOP;
---    roots := next_roots;
---  END LOOP;
---END;
---$$ LANGUAGE plpgsql STRICT;
---CREATE OR REPLACE FUNCTION logl.ParentsBelow(uuid, uuid)
---RETURNS SETOF logl.entry_with_tombstone AS $$
---  WITH              cursor_stamp AS ( SELECT client_time, uuid
---                                        FROM logl.entry_with_tombstone
---                                       WHERE uuid = $1                 )
---  SELECT * FROM     logl.entry_with_tombstone
---          WHERE     parent = $1 AND (timestamp IS NULL OR tombstone IS NULL)
---            AND     client_time >= $4 AND client_time <= $5
---            AND     POSITION($3 IN tag) = 1
---            AND    (client_time, uuid) > (SELECT * FROM cursor_stamp)
---       ORDER BY    (client_time, uuid) ASC
---          LIMIT     256;
---$$ LANGUAGE sql STRICT;
+--  RetrieveSubtree         ::  ID Log -> ID Entry -> Task (Tree Entry)
+CREATE OR REPLACE FUNCTION logl.retrieve_subtree(uuid, uuid)
+RETURNS SETOF logl.entry AS $$
+DECLARE
+  root uuid;
+  roots uuid[] := ARRAY[$2];
+  next_roots uuid[];
+  leaves uuid[];
+BEGIN
+  --  Check for log having been tombstoned or deleted.
+  IF NOT EXISTS (SELECT 1 FROM logl.log WHERE uuid = $1) OR
+         EXISTS (SELECT 1 FROM logl.tombstone WHERE log = $1) THEN
+    RAISE 'No such log %.', $1;
+  END IF;
+  LOOP
+    IF roots = ARRAY[] THEN
+      EXIT;
+    END IF;
+    RETURN QUERY SELECT * FROM logl.entry_with_backedge
+                         WHERE uuid IN (SELECT * FROM unnest(roots));
+    next_roots := ARRAY[];
+    FOR root IN (SELECT * FROM unnest(roots)) LOOP
+      SELECT ARRAY( SELECT child FROM logl.parent_to_children
+                                WHERE parent = root           )
+        INTO leaves;
+      next_roots := next_roots || leaves;
+    END LOOP;
+    roots := next_roots;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql STRICT;
 
