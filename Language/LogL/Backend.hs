@@ -55,6 +55,17 @@ class Backend backend where
   run                       ::  backend -> Task t -> IO (Envelope backend t)
 
 
+data DoNothing               =  DoNothing
+deriving instance Eq DoNothing
+deriving instance Show DoNothing
+instance Backend DoNothing where
+  type Info DoNothing        =  ()
+  type Spec DoNothing        =  ()
+  start _                    =  pure DoNothing
+  stop _                     =  pure ()
+  run _ _                    =  envelope $ pure ((), ERROR)
+
+
 --data SQLite
 --  = SQLite { db :: SQLite3.Database, path :: String, lock :: MVar () }
 --instance Backend SQLite where
@@ -116,10 +127,10 @@ withMVar'                   ::  MVar t' -> IO t -> IO t
 withMVar' mvar               =  withMVar mvar . const
 
 
---envelope :: (Backend i) => IO (Info i, Result) -> IO (Envelope i)
---envelope io                  =  do
---    start                   <-  getCurrentTime
---    (msg, val)              <-  io
---    stop                    <-  getCurrentTime
---    return $ Envelope start stop msg val
+envelope :: (Backend i) => IO (Info i, Status t) -> IO (Envelope i t)
+envelope io                  =  do
+  start                     <-  getCurrentTime
+  (msg, val)                <-  io
+  stop                      <-  getCurrentTime
+  return $ Envelope start stop msg val
 
