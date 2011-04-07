@@ -66,6 +66,12 @@ instance Backend DoNothing where
   run _ _                    =  envelope $ pure ((), ERROR)
 
 
+--  Example of using libpq:
+--  conn <- connectdb ""
+--  trace conn System.IO.stderr
+--  Just res <- exec conn "SELECT * FROM logl.write_log('00000000-0000-0000-0000-000000000000','2011-04-07 03:05:49.105519 UTC','2011-04-07 03:05:49.105519 UTC','');"
+
+
 --data SQLite
 --  = SQLite { db :: SQLite3.Database, path :: String, lock :: MVar () }
 --instance Backend SQLite where

@@ -96,7 +96,7 @@ CREATE OR REPLACE FUNCTION logl.write_log( uuid, timestamp with time zone,
                                                  bytea                     )
 RETURNS VOID AS $$
 BEGIN
-  INSERT INTO       logl.log                      VALUES ($1, $2, $3, $4, $5);
+  INSERT INTO       logl.log                      VALUES ($1, $2, $3, $4);
 EXCEPTION WHEN unique_violation THEN END;
 $$ LANGUAGE plpgsql STRICT;
 
