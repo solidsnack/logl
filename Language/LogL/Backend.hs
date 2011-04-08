@@ -11,7 +11,7 @@ import Control.Applicative
 import Control.Concurrent
 import Control.Exception
 import Control.Monad
-import Data.ByteString.Char8 (ByteString)
+import Data.ByteString.Char8 (ByteString, unpack)
 import Data.Tree (Tree)
 import qualified Data.Tree as Tree
 import qualified Data.List as List
@@ -22,9 +22,12 @@ import Data.Time.Clock
 import Data.Word
 import System.IO.Error
 
+import qualified Database.PQ as PG
+
 import Language.LogL.Syntax
 import qualified Language.LogL.Pickle as Pickle
 import qualified Language.LogL.Macros as Macros
+import qualified Language.LogL.PGConninfo as PG
 
 
 {-| Backends support a few tasks, allowing us to set, delete and retrieve logs
@@ -55,16 +58,22 @@ class Backend backend where
   run                       ::  backend -> Task t -> IO (Envelope backend t)
 
 
-data DoNothing               =  DoNothing
-deriving instance Eq DoNothing
-deriving instance Show DoNothing
-instance Backend DoNothing where
-  type Info DoNothing        =  ()
-  type Spec DoNothing        =  ()
-  start _                    =  pure DoNothing
-  stop _                     =  pure ()
-  run _ _                    =  envelope $ pure ((), ERROR)
-
+data Postgres                =  Postgres { conninfo :: PG.Conninfo,
+                                           conn :: PG.Connection,
+                                           lock :: MVar ()          }
+deriving instance Eq Postgres
+instance Show Postgres where
+  show Postgres{..} = "Postgres " ++ unpack (PG.renderconninfo conninfo)
+instance Backend Postgres where
+  type Info Postgres         =  ()
+  type Spec Postgres         =  PG.Conninfo
+  start conninfo             =  do
+    conn                    <-  PG.connectdb (PG.renderconninfo conninfo)
+    PG.setClientEncoding conn "UTF8"
+    Postgres conninfo conn <$> newMVar ()
+  stop Postgres{..}          =  PG.finish conn
+  run Postgres{..} query     =  envelope $ pure ((), ERROR)
+                                           
 
 --  Example of using libpq:
 --  conn <- connectdb ""
