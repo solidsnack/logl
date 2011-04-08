@@ -11,43 +11,43 @@ import Data.Monoid
 
 {-| PG Connection info string as a record. 
  -}
-data PGConninfo
-  = PGConninfo { host       ::  ByteString,
-                 hostaddr   ::  ByteString,
-                 port       ::  ByteString,
-                 dbname     ::  ByteString,
-                 user       ::  ByteString,
-                 password   ::  ByteString,
-                 connection_timeout :: ByteString,
-                 client_encoding :: ByteString,
-                 options    ::  ByteString,
-                 application_name :: ByteString,
-                 fallback_application_name :: ByteString,
-                 keepalives ::  ByteString,
-                 keepalives_idle :: ByteString,
-                 keepalives_interval :: ByteString,
-                 keepalives_count :: ByteString,
-                 tty        ::  ByteString,
-                 sslmode    ::  ByteString,
-                 sslcert    ::  ByteString,
-                 sslkey     ::  ByteString,
-                 sslrootcert :: ByteString,
-                 sslcrl     ::  ByteString,
-                 sslrequirepeer :: ByteString,
-                 krbsrvname ::  ByteString,
-                 gsslib     ::  ByteString,
-                 service    ::  ByteString                }
-deriving instance Eq PGConninfo
-deriving instance Show PGConninfo
+data Conninfo
+  = Conninfo { host         ::  ByteString,
+               hostaddr     ::  ByteString,
+               port         ::  ByteString,
+               dbname       ::  ByteString,
+               user         ::  ByteString,
+               password     ::  ByteString,
+               connection_timeout :: ByteString,
+               client_encoding :: ByteString,
+               options      ::  ByteString,
+               application_name :: ByteString,
+               fallback_application_name :: ByteString,
+               keepalives   ::  ByteString,
+               keepalives_idle :: ByteString,
+               keepalives_interval :: ByteString,
+               keepalives_count :: ByteString,
+               tty          ::  ByteString,
+               sslmode      ::  ByteString,
+               sslcert      ::  ByteString,
+               sslkey       ::  ByteString,
+               sslrootcert  ::  ByteString,
+               sslcrl       ::  ByteString,
+               sslrequirepeer :: ByteString,
+               krbsrvname   ::  ByteString,
+               gsslib       ::  ByteString,
+               service      ::  ByteString                }
+deriving instance Eq Conninfo
+deriving instance Show Conninfo
 
-empty = PGConninfo "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
-                   "" "" "" "" ""
+empty = Conninfo "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
+                 "" "" "" "" ""
 
 
 {-| Present connection info in the standard conninfo string format. 
  -}
-renderconninfo              ::  PGConninfo -> ByteString
-renderconninfo PGConninfo{..} = unwords [append k v | (k, v) <- info, v /= ""]
+renderconninfo              ::  Conninfo -> ByteString
+renderconninfo Conninfo{..} = unwords [append k v | (k, v) <- info, v /= ""]
  where
   info = [ ("host=", host),
            ("hostaddr=", hostaddr),
