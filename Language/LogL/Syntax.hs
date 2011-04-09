@@ -11,16 +11,17 @@ import Data.Vector
 
 import Language.LogL.Tag (Tag)
 import qualified Language.LogL.UUID as UUID
+import Language.LogL.Pickle
 
 
 data LogL t where
-  Alloc         ::  Log -> LogL (ID Log)
+  Alloc                     ::  Log -> LogL (ID Log)
   Append        ::  ID Log -> ID Entry -> Message -> LogL (ID Entry)
-  Free          ::  ID Log -> LogL ()
-  Subtree       ::  ID Log -> ID Entry -> LogL (Tree Entry)
+  Free                      ::  ID Log -> LogL ()
+  Subtree                   ::  ID Log -> ID Entry -> LogL (Tree Entry)
 --Chain         ::  ID Log -> ID Entry -> ID Entry -> LogL (Vector Entry)
 
-data Log                     =  Log !(ID Log) !UTCTime !Tag !UTCTime
+data Log                     =  Log !(ID Log) !UTCTime !UTCTime !Tag
 deriving instance Eq Log
 deriving instance Ord Log
 deriving instance Show Log
@@ -29,8 +30,8 @@ data Entry                   =  Entry { log         :: !(ID Log),
                                         parent      :: !(ID Entry),
                                         uuid        :: !(ID Entry),
                                         timestamp   :: !UTCTime,
-                                        tag         :: !Tag,
                                         client_time :: !UTCTime,
+                                        tag         :: !Tag,
                                         bytes       :: !ByteString }
 deriving instance Eq Entry
 deriving instance Ord Entry
@@ -40,6 +41,9 @@ data ID t                    =  ID !UUID.V1
 deriving instance Eq (ID t)
 deriving instance Ord (ID t)
 deriving instance Show (ID t)
+instance Pickle (ID t) where
+  i                          =  fmap ID . i
+  o (ID v1)                  =  o v1
 
 data Message                 =  Message !Tag !UTCTime !ByteString
 deriving instance Eq Message

@@ -11,7 +11,7 @@ import Control.Applicative
 import Control.Concurrent
 import Control.Exception
 import Control.Monad
-import Data.ByteString.Char8 (ByteString, unpack)
+import Data.ByteString.Char8
 import Data.Tree (Tree)
 import qualified Data.Tree as Tree
 import qualified Data.List as List
@@ -71,15 +71,50 @@ instance Backend Postgres where
     conn                    <-  PG.connectdb (PG.renderconninfo conninfo)
     PG.setClientEncoding conn "UTF8"
     Postgres conninfo conn <$> newMVar ()
-  stop Postgres{..}          =  PG.finish conn
-  run Postgres{..} query     =  envelope $ pure ((), ERROR)
-                                           
+  stop Postgres{..}          =  PG.finish conn >> takeMVar lock
+  run Postgres{..} query     =  envelope $ do
+    res                     <-  PG.execParams conn text params PG.Binary
+    undefined
+   where
+    (text, params)           =  paramsForPGExec query
 
 --  Example of using libpq:
 --  conn <- connectdb ""
 --  trace conn System.IO.stderr
 --  Just res <- exec conn "SELECT * FROM logl.write_log('00000000-0000-0000-0000-000000000000','2011-04-07 03:05:49.105519 UTC','2011-04-07 03:05:49.105519 UTC','');"
+--  Just res <- execParams conn "SELECT * FROM logl.log WHERE uuid = $1;" [Just (0, "00000000-0000-0000-0000-000000000000", Text)] Text
+--  resultStatus res
+--  getvalue res (toRow 0) (toColumn 0)
 
+paramsForPGExec             ::  Task t
+                -> (ByteString, [Maybe (PG.Oid, ByteString, PG.Format)]) 
+paramsForPGExec task         =  case task of
+  WriteLog (Log i t ct tag) ->  ( call "logl.write_log" 4,
+                                  [ Just (0, Pickle.o i, PG.Text),
+                                    Just (0, Pickle.o t, PG.Text),
+                                    Just (0, Pickle.o ct, PG.Text),
+                                    Just (0, Pickle.o tag, PG.Binary) ] )
+  WriteEntry Entry{..}      ->  ( call "logl.write_entry" 7,
+                                  [ Just (0, Pickle.o log, PG.Text),
+                                    Just (0, Pickle.o parent, PG.Text),
+                                    Just (0, Pickle.o uuid, PG.Text),
+                                    Just (0, Pickle.o timestamp, PG.Text),
+                                    Just (0, Pickle.o client_time, PG.Text),
+                                    Just (0, Pickle.o tag, PG.Binary),
+                                    Just (0, bytes, PG.Binary),
+                                    Just (0, Pickle.o parent, PG.Text)      ] )
+  WriteTombstone idL        ->  ( call "logl.write_tombstone" 1,
+                                  [Just (0, Pickle.o idL, PG.Text)] )
+  RetrieveSubtree idL idE   ->  ( call "logl.retrieve_subtree" 2,
+                                  [ Just (0, Pickle.o idL, PG.Text),
+                                    Just (0, Pickle.o idE, PG.Text) ] )
+
+ where
+  call                      ::  ByteString -> Word -> ByteString
+  call name arity            =  mconcat
+    [ "SELECT * FROM ", name, "(", 
+      intercalate ", " ((cons '$' . pack . show) <$> [1..arity]),
+      ");"                                                       ]
 
 --data SQLite
 --  = SQLite { db :: SQLite3.Database, path :: String, lock :: MVar () }

@@ -40,7 +40,7 @@ deriving instance Eq Conninfo
 deriving instance Show Conninfo
 
 empty = Conninfo "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
-                 "" "" "" "" ""
+                 "" "" "" ""
 
 
 {-| Present connection info in the standard conninfo string format. 
