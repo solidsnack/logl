@@ -45,7 +45,7 @@ instance Pickle (ID t) where
   i                          =  fmap ID . i
   o (ID v1)                  =  o v1
 
-data Message                 =  Message !Tag !UTCTime !ByteString
+data Message                 =  Message !UTCTime !Tag !ByteString
 deriving instance Eq Message
 deriving instance Ord Message
 deriving instance Show Message
