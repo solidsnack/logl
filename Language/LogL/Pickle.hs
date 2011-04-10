@@ -61,7 +61,8 @@ short_circuit_date_parser    =  worker (Just Year) ""
     Subs                    ->  done <|> do _ <- char '.'
                                             d <- unpack <$> upto 12 isDigit
                                             _ <- tz
-                                            worker Nothing ('.':d ++ soFar)
+                                            let subs = '.':d ++ "Z"
+                                            worker Nothing (soFar ++ subs)
    where
     done                     =  tz >> endOfInput >> worker Nothing soFar
     tz                       =  string "Z" <|> string " UTC"
