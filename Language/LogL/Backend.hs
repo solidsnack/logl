@@ -41,14 +41,23 @@ data Task t where
   WriteTombstone            ::  ID Log -> Task ()
   RetrieveSubtree           ::  ID Log -> ID Entry -> Task (Tree Entry)
 
+taskName                    ::  Task t -> ByteString
+taskName (WriteLog _)        =  "WriteLog"
+taskName (WriteEntry _)      =  "WriteEntry"
+taskName (WriteTombstone _)  =  "WriteTombstone"
+taskName (RetrieveSubtree _ _) = "RetrieveSubtree"
+
 data Envelope b t where
   Envelope :: (Backend b) ---------------------------------------------
            => !UTCTime -> !UTCTime -> Info b -> Status t -> Envelope b t
+deriving instance (Eq t, Eq (Info b)) => Eq (Envelope b t)
+deriving instance (Show t, Show (Info b)) => Show (Envelope b t)
 
 {-| A search may fail or it may return a result.
  -}
 data Status t                =  OK !t | ERROR
-
+deriving instance (Eq t) => Eq (Status t)
+deriving instance (Show t) => Show (Status t)
 
 class Backend backend where
   type Info backend         ::  *
@@ -65,7 +74,7 @@ deriving instance Eq Postgres
 instance Show Postgres where
   show Postgres{..} = "Postgres " ++ unpack (PG.renderconninfo conninfo)
 instance Backend Postgres where
-  type Info Postgres         =  (PG.ConnStatus, ByteString)
+  type Info Postgres         =  ByteString
   type Spec Postgres         =  PG.Conninfo
   start conninfo             =  do
     conn                    <-  PG.connectdb (PG.renderconninfo conninfo)
@@ -76,16 +85,36 @@ instance Backend Postgres where
       Left b                ->  error (unpack b)
       Right result          ->  Postgres conninfo conn <$> newMVar ()
   stop Postgres{..}          =  PG.finish conn >> takeMVar lock
-  run Postgres{..} query     =  envelope $ do
-    res                     <-  PG.execParams conn text params PG.Binary
-    undefined
+  run Postgres{..} task      =  envelope $ dispatch task
    where
-    (text, params)           =  paramsForPGExec query
---    stat_only               ::  Task () -> IO ()
---    stat_only task           =  do
---      let (text, params)     =  paramsForPGExec task
---      res                   <-  PG.execParams conn text params PG.Binary
---    form_tree :: Task (Tree Entry) -> IO (Envelope Postgres (Tree Entry))
+    dispatch                ::  Task t -> IO (Info Postgres, Status t)
+    dispatch task            =  case task of
+      WriteLog _            ->  stat_only task
+      WriteEntry _          ->  stat_only task
+      WriteTombstone _      ->  stat_only task
+      RetrieveSubtree _ _   ->  form_tree task
+    (text, params)           =  paramsForPGExec task
+    execTask                 =  do
+      res                   <-  PG.execParams conn text params PG.Binary
+      pgGuard (mconcat ["Task: ", taskName task, "."]) res
+    stat_only               ::  Task () -> IO (Info Postgres, Status ())
+    stat_only task           =  do
+      res                   <-  execTask
+      case res of Left err  ->  return (err, ERROR)
+                  Right _   ->  return ("", OK ())
+    form_tree :: Task (Tree Entry) -> IO (Info Postgres, Status (Tree Entry))
+    form_tree task           =  do
+      res                   <-  execTask
+      case res of Left err  ->  return (err, ERROR)
+                  Right _   ->  return ("", OK (Tree.Node shim []))
+     where
+      shim                   =  Entry "00000000-0000-0000-0000-000000000000"
+                                      "00000000-0000-0000-0000-000000000000"
+                                      "00000000-0000-0000-0000-000000000000" 
+                                      "2011-04-07 03:05:49.105519 UTC"
+                                      "2011-04-07 03:05:49.105519 UTC"
+                                      "shim"
+                                      ""
 
 --  Example of using libpq:
 --  conn <- connectdb ""

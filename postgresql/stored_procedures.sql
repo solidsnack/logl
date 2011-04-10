@@ -122,7 +122,7 @@ $$ LANGUAGE plpgsql STRICT;
 
 --  RetrieveSubtree         ::  ID Log -> ID Entry -> Task (Tree Entry)
 CREATE OR REPLACE FUNCTION logl.retrieve_subtree(uuid, uuid)
-RETURNS SETOF logl.entry AS $$
+RETURNS SETOF logl.entry_with_backedge AS $$
 DECLARE
   root uuid;
   roots uuid[] := ARRAY[$2];
@@ -135,12 +135,12 @@ BEGIN
     RAISE 'No such log %.', $1;
   END IF;
   LOOP
-    IF roots = ARRAY[] THEN
+    IF roots = ARRAY[]::uuid[] THEN
       EXIT;
     END IF;
     RETURN QUERY SELECT * FROM logl.entry_with_backedge
                          WHERE uuid IN (SELECT * FROM unnest(roots));
-    next_roots := ARRAY[];
+    next_roots := ARRAY[]::uuid[];
     FOR root IN (SELECT * FROM unnest(roots)) LOOP
       SELECT ARRAY( SELECT child FROM logl.parent_to_children
                                 WHERE parent = root           )

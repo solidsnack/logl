@@ -4,6 +4,8 @@
 module Language.LogL.Syntax where
 
 import Data.ByteString.Char8
+import Data.Maybe
+import Data.String
 import Data.Time.Clock
 import Data.Time.Format()
 import Data.Tree
@@ -44,6 +46,8 @@ deriving instance Show (ID t)
 instance Pickle (ID t) where
   i                          =  fmap ID . i
   o (ID v1)                  =  o v1
+instance IsString (ID t) where
+  fromString                 =  fromJust . i . pack
 
 data Message                 =  Message !UTCTime !Tag !ByteString
 deriving instance Eq Message
