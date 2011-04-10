@@ -21,6 +21,7 @@ import Data.Monoid
 import Data.Time.Clock
 import Data.Word
 import System.IO.Error
+import System.Posix.Types (CPid)
 
 import qualified Database.PQ as PG
 
@@ -39,7 +40,7 @@ data Task t where
   WriteLog                  ::  Log -> Task ()
   WriteEntry                ::  Entry -> Task ()
   WriteTombstone            ::  ID Log -> Task ()
-  RetrieveSubtree           ::  ID Log -> ID Entry -> Task (Tree Entry)
+  RetrieveSubtree           ::  ID Log -> ID Entry -> Task (Maybe (Tree Entry))
 
 taskName                    ::  Task t -> ByteString
 taskName (WriteLog _)        =  "WriteLog"
@@ -68,8 +69,9 @@ class Backend backend where
 
 
 data Postgres                =  Postgres { conninfo :: PG.Conninfo,
-                                           conn :: PG.Connection,
-                                           lock :: MVar ()          }
+                                           conn     :: PG.Connection,
+                                           meta     :: MVar CPid,
+                                           lock     :: MVar ()       }
 deriving instance Eq Postgres
 instance Show Postgres where
   show Postgres{..} = "Postgres " ++ unpack (PG.renderconninfo conninfo)
@@ -83,9 +85,11 @@ instance Backend Postgres where
     guarded <- pgGuard "Connection setup." =<< PG.exec conn pgSetupCommands
     case guarded of
       Left b                ->  error (unpack b)
-      Right result          ->  Postgres conninfo conn <$> newMVar ()
+      Right result          ->  do pid <- PG.backendPID conn
+                                   Postgres conninfo conn <$> newMVar pid
+                                                          <*> newMVar ()
   stop Postgres{..}          =  PG.finish conn >> takeMVar lock
-  run Postgres{..} task      =  envelope $ dispatch task
+  run Postgres{..} task      =  (envelope . withMVar' lock) (dispatch task)
    where
     dispatch                ::  Task t -> IO (Info Postgres, Status t)
     dispatch task            =  case task of
@@ -94,27 +98,28 @@ instance Backend Postgres where
       WriteTombstone _      ->  stat_only task
       RetrieveSubtree _ _   ->  form_tree task
     (text, params)           =  paramsForPGExec task
-    execTask                 =  do
-      res                   <-  PG.execParams conn text params PG.Binary
+    execTask otype           =  do
+      res                   <-  PG.execParams conn text params otype
       pgGuard (mconcat ["Task: ", taskName task, "."]) res
     stat_only               ::  Task () -> IO (Info Postgres, Status ())
     stat_only task           =  do
-      res                   <-  execTask
+      res                   <-  execTask PG.Text
       case res of Left err  ->  return (err, ERROR)
                   Right _   ->  return ("", OK ())
-    form_tree :: Task (Tree Entry) -> IO (Info Postgres, Status (Tree Entry))
+    form_tree :: Task (Maybe (Tree Entry)) ---------------------------------
+              -> IO (Info Postgres, Status (Maybe (Tree Entry)))
     form_tree task           =  do
-      res                   <-  execTask
+      res                   <-  execTask PG.Binary
       case res of Left err  ->  return (err, ERROR)
-                  Right _   ->  return ("", OK (Tree.Node shim []))
-     where
-      shim                   =  Entry "00000000-0000-0000-0000-000000000000"
-                                      "00000000-0000-0000-0000-000000000000"
-                                      "00000000-0000-0000-0000-000000000000" 
-                                      "2011-04-07 03:05:49 UTC"
-                                      "2011-04-07 03:05:49 UTC"
-                                      "shim"
-                                      ""
+                  Right _   ->  return ("", OK Nothing)
+--     where
+--      shim                   =  Entry "00000000-0000-0000-0000-000000000000"
+--                                      "00000000-0000-0000-0000-000000000000"
+--                                      "00000000-0000-0000-0000-000000000000" 
+--                                      "2011-04-07 03:05:49 UTC"
+--                                      "2011-04-07 03:05:49 UTC"
+--                                      "shim"
+--                                      ""
 
 --  Example of using libpq:
 --  conn <- connectdb ""
@@ -148,14 +153,13 @@ paramsForPGExec task         =  case task of
                                     Just (0, Pickle.o ct, PG.Text),
                                     Just (0, Pickle.o tag, PG.Binary) ] )
   WriteEntry Entry{..}      ->  ( call "logl.write_entry" 7,
-                                  [ Just (0, Pickle.o log, PG.Text),
+                                  [ Just (0, Pickle.o uuid, PG.Text),
+                                    Just (0, Pickle.o log, PG.Text),
                                     Just (0, Pickle.o parent, PG.Text),
-                                    Just (0, Pickle.o uuid, PG.Text),
                                     Just (0, Pickle.o timestamp, PG.Text),
                                     Just (0, Pickle.o client_time, PG.Text),
                                     Just (0, Pickle.o tag, PG.Binary),
-                                    Just (0, bytes, PG.Binary),
-                                    Just (0, Pickle.o parent, PG.Text)      ] )
+                                    Just (0, bytes, PG.Binary)              ] )
   WriteTombstone idL        ->  ( call "logl.write_tombstone" 1,
                                   [Just (0, Pickle.o idL, PG.Text)] )
   RetrieveSubtree idL idE   ->  ( call "logl.retrieve_subtree" 2,

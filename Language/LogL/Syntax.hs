@@ -28,9 +28,9 @@ deriving instance Eq Log
 deriving instance Ord Log
 deriving instance Show Log
 
-data Entry                   =  Entry { log         :: !(ID Log),
+data Entry                   =  Entry { uuid        :: !(ID Entry),
+                                        log         :: !(ID Log),
                                         parent      :: !(ID Entry),
-                                        uuid        :: !(ID Entry),
                                         timestamp   :: !UTCTime,
                                         client_time :: !UTCTime,
                                         tag         :: !Tag,
