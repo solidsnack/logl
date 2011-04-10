@@ -65,18 +65,27 @@ deriving instance Eq Postgres
 instance Show Postgres where
   show Postgres{..} = "Postgres " ++ unpack (PG.renderconninfo conninfo)
 instance Backend Postgres where
-  type Info Postgres         =  ()
+  type Info Postgres         =  (PG.ConnStatus, ByteString)
   type Spec Postgres         =  PG.Conninfo
   start conninfo             =  do
     conn                    <-  PG.connectdb (PG.renderconninfo conninfo)
-    PG.setClientEncoding conn "UTF8"
-    Postgres conninfo conn <$> newMVar ()
+    stat                    <-  PG.setClientEncoding conn "UTF8"
+    when (not stat) (error "Failed to set encoding of PG connection.")
+    guarded <- pgGuard "Connection setup." =<< PG.exec conn pgSetupCommands
+    case guarded of
+      Left b                ->  error (unpack b)
+      Right result          ->  Postgres conninfo conn <$> newMVar ()
   stop Postgres{..}          =  PG.finish conn >> takeMVar lock
   run Postgres{..} query     =  envelope $ do
     res                     <-  PG.execParams conn text params PG.Binary
     undefined
    where
     (text, params)           =  paramsForPGExec query
+--    stat_only               ::  Task () -> IO ()
+--    stat_only task           =  do
+--      let (text, params)     =  paramsForPGExec task
+--      res                   <-  PG.execParams conn text params PG.Binary
+--    form_tree :: Task (Tree Entry) -> IO (Envelope Postgres (Tree Entry))
 
 --  Example of using libpq:
 --  conn <- connectdb ""
@@ -86,7 +95,22 @@ instance Backend Postgres where
 --  resultStatus res
 --  getvalue res (toRow 0) (toColumn 0)
 
-paramsForPGExec             ::  Task t
+pgGuard :: ByteString -------------------------------------------------
+        -> Maybe PG.Result -> IO (Either ByteString PG.Result)
+pgGuard rem Nothing = return . Left $ mappend "No response from server. " rem
+pgGuard rem (Just result)    =  do
+  stat                      <-  PG.resultStatus result
+  msg                       <-  maybe "" id <$> PG.resultErrorMessage result
+  let errmsg                 =  mconcat ["Query failed. ", rem, " ", msg]
+  return $ case stat of
+    PG.BadResponse          ->  Left errmsg
+    PG.FatalError           ->  Left errmsg
+    _                       ->  Right result
+
+pgSetupCommands             ::  ByteString
+pgSetupCommands = $(Macros.text "./postgresql/stored_procedures.sql")
+
+paramsForPGExec :: Task t ------------------------------------------------
                 -> (ByteString, [Maybe (PG.Oid, ByteString, PG.Format)]) 
 paramsForPGExec task         =  case task of
   WriteLog (Log i t ct tag) ->  ( call "logl.write_log" 4,
