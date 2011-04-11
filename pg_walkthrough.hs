@@ -50,7 +50,7 @@
  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
 
 
-import qualified Database.PQ as PG
+import qualified Database.PQ as PQ
 
 import Language.LogL.Backend
 import qualified Language.LogL.PGConninfo as PG
