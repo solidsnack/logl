@@ -4,6 +4,8 @@
            , RecordWildCards
            , TypeSynonymInstances
            , TemplateHaskell
+           , TypeFamilies
+           , FlexibleContexts
   #-}
 module Language.LogL.Backend where
 
