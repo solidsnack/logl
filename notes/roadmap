@@ -13,7 +13,9 @@
 
   > Something solid for correctness of PG response handling.
 
-  > App works over UNIX sockets and HTTP.
+  > Work out protocol for identifying and tracing requests.
+
+  > App works over UNIX sockets and TCP.
 
 > Product
 
