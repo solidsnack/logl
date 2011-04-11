@@ -1,0 +1,28 @@
+
+
+
+> Service
+
+  > Can interact with PG using the backend language.
+
+  > Can interact with PG using the frontend language.
+
+  > Can interact with sharded/replicated PG using the backend language.
+
+  > Ditto for front-end language.
+
+  > Something solid for correctness of PG response handling.
+
+  > App works over UNIX sockets and HTTP.
+
+> Product
+
+  > Figure out how to correlate users with service requests.
+
+  > Proxy app with Apache running on the same machine.
+
+  > Work out authentication via Apache.
+
+  > Work out behaviour tracking via Apache.
+
+
