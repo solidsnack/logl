@@ -77,7 +77,7 @@ default_conninfo = Conninfo "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
 {-| Present connection info in the standard conninfo string format. 
  -}
 renderconninfo              ::  Conninfo -> ByteString
-renderconninfo Conninfo{..} = unwords [append k v | (k, v) <- info, v /= ""]
+renderconninfo Conninfo{..}  =  unwords [append k v | (k, v) <- info, v /= ""]
  where
   info = [ ("host=", host), -------------------------------------------------
            ("hostaddr=", hostaddr),
