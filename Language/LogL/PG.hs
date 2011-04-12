@@ -79,7 +79,7 @@ default_conninfo = Conninfo "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
 renderconninfo              ::  Conninfo -> ByteString
 renderconninfo Conninfo{..} = unwords [append k v | (k, v) <- info, v /= ""]
  where
-  info = [ ("host=", host),
+  info = [ ("host=", host), -------------------------------------------------
            ("hostaddr=", hostaddr),
            ("port=", port),
            ("dbname=", dbname),
