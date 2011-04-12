@@ -71,8 +71,11 @@ data Conninfo
 deriving instance Eq Conninfo
 deriving instance Show Conninfo
 
+{-| A connnection info object with no parameters set.
+ -}
+default_conninfo            ::  Conninfo
 default_conninfo = Conninfo "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
-                              "" "" "" "" "" "" "" ""
+                            "" "" "" "" "" "" "" ""
 
 {-| Present connection info in the standard conninfo string format. 
  -}
