@@ -84,7 +84,7 @@ instance Backend Postgres where
     conn                    <-  PG.connectdb (PG.renderconninfo conninfo)
     stat                    <-  PG.setClientEncoding conn "UTF8"
     when (not stat) (error "Failed to set encoding of PG connection.")
-    guarded <- pgGuard "Connection setup." =<< PG.exec conn pgSetupCommands
+    guarded <- PG.guard "Connection setup." =<< PG.exec conn pgSetupCommands
     case guarded of
       Left b                ->  error (unpack b)
       Right result          ->  do pid <- PG.backendPID conn
@@ -102,7 +102,7 @@ instance Backend Postgres where
     (text, params)           =  paramsForPGExec task
     execTask otype           =  do
       res                   <-  PG.execParams conn text params otype
-      pgGuard (mconcat ["Task: ", taskName task, "."]) res
+      PG.guard (mconcat ["Task: ", taskName task, "."]) res
     stat_only               ::  Task () -> IO (Info Postgres, Status ())
     stat_only task           =  do
       res                   <-  execTask PG.Text
@@ -117,38 +117,18 @@ instance Backend Postgres where
 --                Right r   ->  do
 
 
---  Example of using libpq:
---  conn <- connectdb ""
---  trace conn System.IO.stderr
---  Just res <- exec conn "SELECT * FROM logl.write_log('00000000-0000-0000-0000-000000000000','2011-04-07 03:05:49.105519 UTC','2011-04-07 03:05:49.105519 UTC','');"
---  Just res <- execParams conn "SELECT * FROM logl.log WHERE uuid = $1;" [Just (0, "00000000-0000-0000-0000-000000000000", Text)] Text
---  resultStatus res
---  getvalue res (toRow 0) (toColumn 0)
-
-pgGuard :: ByteString -------------------------------------------------
-        -> Maybe PG.Result -> IO (Either ByteString PG.Result)
-pgGuard rem Nothing = return . Left $ mappend "No response from server. " rem
-pgGuard rem (Just result)    =  do
-  stat                      <-  PG.resultStatus result
-  msg                       <-  maybe "" id <$> PG.resultErrorMessage result
-  let errmsg                 =  mconcat ["Query failed. ", rem, " ", msg]
-  return $ case stat of
-    PG.BadResponse          ->  Left errmsg
-    PG.FatalError           ->  Left errmsg
-    _                       ->  Right result
-
 pgSetupCommands             ::  ByteString
 pgSetupCommands = $(Macros.text "./postgresql/stored_procedures.sql")
 
 paramsForPGExec :: Task t ------------------------------------------------
                 -> (ByteString, [Maybe (PG.Oid, ByteString, PG.Format)]) 
 paramsForPGExec task         =  case task of
-  WriteLog (Log i t ct tag) ->  ( call "logl.write_log" 4,
+  WriteLog (Log i t ct tag) ->  ( PG.call "logl.write_log" 4,
                                   [ Just (0, Pickle.o i, PG.Text),
                                     Just (0, Pickle.o t, PG.Text),
                                     Just (0, Pickle.o ct, PG.Text),
                                     Just (0, Pickle.o tag, PG.Binary) ] )
-  WriteEntry Entry{..}      ->  ( call "logl.write_entry" 7,
+  WriteEntry Entry{..}      ->  ( PG.call "logl.write_entry" 7,
                                   [ Just (0, Pickle.o uuid, PG.Text),
                                     Just (0, Pickle.o log, PG.Text),
                                     Just (0, Pickle.o parent, PG.Text),
@@ -156,18 +136,12 @@ paramsForPGExec task         =  case task of
                                     Just (0, Pickle.o client_time, PG.Text),
                                     Just (0, Pickle.o tag, PG.Binary),
                                     Just (0, bytes, PG.Binary)              ] )
-  WriteTombstone idL        ->  ( call "logl.write_tombstone" 1,
+  WriteTombstone idL        ->  ( PG.call "logl.write_tombstone" 1,
                                   [Just (0, Pickle.o idL, PG.Text)] )
-  RetrieveSubtree idL idE   ->  ( call "logl.retrieve_subtree" 2,
+  RetrieveSubtree idL idE   ->  ( PG.call "logl.retrieve_subtree" 2,
                                   [ Just (0, Pickle.o idL, PG.Text),
                                     Just (0, Pickle.o idE, PG.Text) ] )
 
- where
-  call                      ::  ByteString -> Word -> ByteString
-  call name arity            =  mconcat
-    [ "SELECT * FROM ", name, "(", 
-      intercalate ", " ((cons '$' . pack . show) <$> [1..arity]),
-      ");"                                                       ]
 
 --data SQLite
 --  = SQLite { db :: SQLite3.Database, path :: String, lock :: MVar () }

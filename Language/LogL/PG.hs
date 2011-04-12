@@ -8,6 +8,38 @@ import Prelude hiding (unwords)
 import Control.Applicative
 import Data.ByteString.Char8
 import Data.Monoid
+import Data.Word
+
+import Database.PQ
+
+
+--  Example of using libpq:
+--  conn <- connectdb ""
+--  trace conn System.IO.stderr
+--  Just res <- exec conn "SELECT * FROM logl.write_log('00000000-0000-0000-0000-000000000000','2011-04-07 03:05:49.105519 UTC','2011-04-07 03:05:49.105519 UTC','');"
+--  Just res <- execParams conn "SELECT * FROM logl.log WHERE uuid = $1;" [Just (0, "00000000-0000-0000-0000-000000000000", Text)] Text
+--  resultStatus res
+--  getvalue res (toRow 0) (toColumn 0)
+
+guard :: ByteString -------------------------------------------------
+        -> Maybe Result -> IO (Either ByteString Result)
+guard rem Nothing = return . Left $ mappend "No response from server. " rem
+guard rem (Just result)      =  do
+  stat                      <-  resultStatus result
+  msg                       <-  maybe "" id <$> resultErrorMessage result
+  let errmsg                 =  mconcat ["Query failed. ", rem, " ", msg]
+  return $ case stat of
+    BadResponse             ->  Left errmsg
+    FatalError              ->  Left errmsg
+    _                       ->  Right result
+
+
+call                        ::  ByteString -> Word -> ByteString
+call name arity              =  mconcat
+  [ "SELECT * FROM ", name, "(",
+    intercalate ", " ((cons '$' . pack . show) <$> [1..arity]),
+    ");"                                                       ]
+
 
 {-| PG Connection info string as a record. 
  -}
@@ -39,9 +71,8 @@ data Conninfo
 deriving instance Eq Conninfo
 deriving instance Show Conninfo
 
-empty = Conninfo "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
-                 "" "" "" ""
-
+default_conninfo = Conninfo "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
+                              "" "" "" "" "" "" "" ""
 
 {-| Present connection info in the standard conninfo string format. 
  -}
