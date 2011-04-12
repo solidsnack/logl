@@ -1,16 +1,22 @@
 {-# LANGUAGE OverloadedStrings
            , StandaloneDeriving
            , RecordWildCards
+           , ParallelListComp
   #-}
 module Language.LogL.PG where
 
 import Prelude hiding (unwords)
 import Control.Applicative
+import Control.Exception
 import Data.ByteString.Char8
+import Data.Either
 import Data.Monoid
 import Data.Word
 
 import Database.PQ
+
+import Language.LogL.Syntax
+import qualified Language.LogL.Pickle as Pickle
 
 
 --  Example of using libpq:
@@ -106,4 +112,65 @@ renderconninfo Conninfo{..}  =  unwords [append k v | (k, v) <- info, v /= ""]
            ("krbsrvname=", krbsrvname),
            ("gsslib=", gsslib),
            ("service=", service) ]
+
+
+class PGPickle t where
+  pqARGV                    ::  t -> [Maybe (Oid, ByteString, Format)]
+  fromResult                ::  Result -> IO [t]
+
+instance PGPickle Log where
+  pqARGV (Log i t ct tag)    =  [ Just (0, Pickle.o i,   Text),
+                                  Just (0, Pickle.o t,   Text),
+                                  Just (0, Pickle.o ct,  Text),
+                                  Just (0, Pickle.o tag, Binary) ]
+  fromResult result          =  mapM fromTuple =<< unpackResult result
+   where
+    fromTuple               ::  [Maybe ByteString] -> IO Log
+    fromTuple [Just i, Just t, Just ct, Just tag] = do
+      tag'                  <-  unescapeBytea tag
+      maybe msg return $ do uuid'              <-  Pickle.i i
+                            timestamp'         <-  Pickle.i t
+                            client_time'       <-  Pickle.i ct
+                            tag''              <-  Pickle.i =<< tag'
+                            Just (Log uuid' timestamp' client_time' tag'')
+    fromTuple _              =  msg
+    msg                      =  error "Bad SQL tuple for Log."
+
+
+instance PGPickle Entry where
+  pqARGV Entry{..}           =  [ Just (0, Pickle.o uuid,        Text),
+                                  Just (0, Pickle.o log,         Text),
+                                  Just (0, Pickle.o parent,      Text),
+                                  Just (0, Pickle.o timestamp,   Text),
+                                  Just (0, Pickle.o client_time, Text),
+                                  Just (0, Pickle.o tag,         Binary),
+                                  Just (0, bytes,                Binary) ]
+  fromResult result          =  mapM fromTuple =<< unpackResult result
+   where
+    fromTuple               ::  [Maybe ByteString] -> IO Entry
+    fromTuple [ Just uuid, Just log, Just parent, Just timestamp,
+                Just client_time, Just tag, Just bytes           ] = do
+      tag'                  <-  unescapeBytea tag
+      bytes'                <-  unescapeBytea bytes
+      maybe msg return $ do uuid'              <-  Pickle.i uuid
+                            log'               <-  Pickle.i log
+                            parent'            <-  Pickle.i parent
+                            timestamp'         <-  Pickle.i timestamp
+                            client_time'       <-  Pickle.i client_time
+                            tag''              <-  Pickle.i =<< tag'
+                            bytes''            <-  Pickle.i =<< bytes'
+                            Just ( Entry uuid' log' parent' timestamp'
+                                         client_time' tag'' bytes''    )
+    fromTuple _              =  msg
+    msg                      =  error "Bad SQL tuple for Entry."
+
+
+unpackResult                ::  Result -> IO [[Maybe ByteString]]
+unpackResult result          =  do
+  rows                      <-  ntuples result
+  columns                   <-  nfields result
+  (sequence . (sequence <$>))
+    [ [ getvalue' result r c | c <- toColumn <$> [0..(columns - 1)] ]
+                             | r <- toRow <$> [0..(rows - 1)]       ]
+
 
