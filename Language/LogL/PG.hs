@@ -22,7 +22,7 @@ import Database.PQ
 --  getvalue res (toRow 0) (toColumn 0)
 
 guard :: ByteString -------------------------------------------------
-        -> Maybe Result -> IO (Either ByteString Result)
+      -> Maybe Result -> IO (Either ByteString Result)
 guard rem Nothing = return . Left $ mappend "No response from server. " rem
 guard rem (Just result)      =  do
   stat                      <-  resultStatus result
