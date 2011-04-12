@@ -112,9 +112,13 @@ instance Backend Postgres where
               -> IO (Info Postgres, Status (Maybe (Tree Entry)))
     form_tree task           =  do
       res                   <-  execTask PG.Binary
-      case res of Left err  ->  return (err, ERROR)
-                  Right r   ->  return ("", OK Nothing)
---                Right r   ->  do
+      case res of
+        Left err            ->  return (err, ERROR)
+--                Right _   ->  return ("", OK Nothing)
+        Right result        ->  do
+          entries           <-  PG.fromResult result
+          case entries of [ ] -> return ("", OK Nothing)
+                          h:t -> return ("", OK (Just (Tree.Node h [])))
 
 
 pgSetupCommands             ::  ByteString
@@ -123,19 +127,8 @@ pgSetupCommands = $(Macros.text "./postgresql/stored_procedures.sql")
 paramsForPGExec :: Task t ------------------------------------------------
                 -> (ByteString, [Maybe (PG.Oid, ByteString, PG.Format)]) 
 paramsForPGExec task         =  case task of
-  WriteLog (Log i t ct tag) ->  ( PG.call "logl.write_log" 4,
-                                  [ Just (0, Pickle.o i, PG.Text),
-                                    Just (0, Pickle.o t, PG.Text),
-                                    Just (0, Pickle.o ct, PG.Text),
-                                    Just (0, Pickle.o tag, PG.Binary) ] )
-  WriteEntry Entry{..}      ->  ( PG.call "logl.write_entry" 7,
-                                  [ Just (0, Pickle.o uuid, PG.Text),
-                                    Just (0, Pickle.o log, PG.Text),
-                                    Just (0, Pickle.o parent, PG.Text),
-                                    Just (0, Pickle.o timestamp, PG.Text),
-                                    Just (0, Pickle.o client_time, PG.Text),
-                                    Just (0, Pickle.o tag, PG.Binary),
-                                    Just (0, bytes, PG.Binary)              ] )
+  WriteLog log              ->  (PG.call "logl.write_log" 4, PG.pqARGV log)
+  WriteEntry entry          ->  (PG.call "logl.write_entry" 7, PG.pqARGV entry)
   WriteTombstone idL        ->  ( PG.call "logl.write_tombstone" 1,
                                   [Just (0, Pickle.o idL, PG.Text)] )
   RetrieveSubtree idL idE   ->  ( PG.call "logl.retrieve_subtree" 2,
