@@ -53,7 +53,7 @@
 import qualified Database.PQ as PG
 
 import Language.LogL.Backend
-import qualified Language.LogL.PGConninfo as PG
+import qualified Language.LogL.PG as PG
 import Language.LogL.Syntax
 
 

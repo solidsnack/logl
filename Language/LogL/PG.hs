@@ -2,7 +2,7 @@
            , StandaloneDeriving
            , RecordWildCards
   #-}
-module Language.LogL.PGConninfo where
+module Language.LogL.PG where
 
 import Prelude hiding (unwords)
 import Control.Applicative

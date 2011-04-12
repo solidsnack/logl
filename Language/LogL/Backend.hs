@@ -30,7 +30,7 @@ import qualified Database.PQ as PG
 import Language.LogL.Syntax
 import qualified Language.LogL.Pickle as Pickle
 import qualified Language.LogL.Macros as Macros
-import qualified Language.LogL.PGConninfo as PG
+import qualified Language.LogL.PG as PG
 
 
 {-| Backends support a few tasks, allowing us to set, delete and retrieve logs
@@ -113,15 +113,9 @@ instance Backend Postgres where
     form_tree task           =  do
       res                   <-  execTask PG.Binary
       case res of Left err  ->  return (err, ERROR)
-                  Right _   ->  return ("", OK Nothing)
---     where
---      shim                   =  Entry "00000000-0000-0000-0000-000000000000"
---                                      "00000000-0000-0000-0000-000000000000"
---                                      "00000000-0000-0000-0000-000000000000" 
---                                      "2011-04-07 03:05:49 UTC"
---                                      "2011-04-07 03:05:49 UTC"
---                                      "shim"
---                                      ""
+                  Right r   ->  return ("", OK Nothing)
+--                Right r   ->  do
+
 
 --  Example of using libpq:
 --  conn <- connectdb ""
