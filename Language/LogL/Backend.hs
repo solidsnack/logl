@@ -6,6 +6,7 @@
            , TemplateHaskell
            , TypeFamilies
            , FlexibleContexts
+           , TupleSections
   #-}
 module Language.LogL.Backend where
 
@@ -114,10 +115,7 @@ instance Backend Postgres where
       res                   <-  execTask PG.Text
       case res of
         Left err            ->  return (err, ERROR)
-        Right result        ->  do
-          entries           <-  PG.fromResult result
-          case entries of [ ] -> return ("", OK Nothing)
-                          h:t -> return ("", OK (Just (Tree.Node h [])))
+        Right result        ->  ("",) . OK . topSort <$> PG.fromResult result
 
 
 pgSetupCommands             ::  ByteString
@@ -202,4 +200,11 @@ envelope io                  =  do
   (msg, val)                <-  io
   stop                      <-  getCurrentTime
   return $ Envelope start stop msg val
+
+
+topSort                     ::  [Entry] -> Maybe (Tree Entry)
+topSort list                 =  case list of
+  []                        ->  Nothing
+  [entry]                   ->  Just (Tree.Node entry [])
+  entry:_                   ->  Just (Tree.Node entry [])
 
