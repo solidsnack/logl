@@ -15,13 +15,14 @@ import Control.Concurrent
 import Control.Exception
 import Control.Monad
 import Data.ByteString.Char8
-import Data.Tree (Tree)
-import qualified Data.Tree as Tree
+import Data.Either
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Monoid
 import Data.Time.Clock
+import Data.Tree (Tree)
+import qualified Data.Tree as Tree
 import Data.Word
 import System.IO.Error
 import System.Posix.Types (CPid)
@@ -115,7 +116,9 @@ instance Backend Postgres where
       res                   <-  execTask PG.Text
       case res of
         Left err            ->  return (err, ERROR)
-        Right result        ->  ("",) . OK . topSort <$> PG.fromResult result
+        Right result        ->  do
+          (errors, okay)    <-  partitionEithers <$> PG.fromResult result
+          return ((("",) . OK . topSort) okay)
 
 
 pgSetupCommands             ::  ByteString

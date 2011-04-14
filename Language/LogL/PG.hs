@@ -5,9 +5,10 @@
   #-}
 module Language.LogL.PG where
 
-import Prelude hiding (unwords)
+import Prelude hiding (unwords, length, take)
 import Control.Applicative
 import Control.Exception
+import Control.Monad.Error
 import Data.ByteString.Char8
 import Data.Either
 import Data.Monoid
@@ -116,7 +117,7 @@ renderconninfo Conninfo{..}  =  unwords [append k v | (k, v) <- info, v /= ""]
 
 class PGPickle t where
   pqARGV                    ::  t -> [Maybe (Oid, ByteString, Format)]
-  fromResult                ::  Result -> IO [t]
+  fromResult                ::  Result -> IO [Either ByteString t]
 
 instance PGPickle Log where
   pqARGV (Log i t ct tag)    =  [ Just (0, Pickle.o i,   Text),
@@ -125,17 +126,17 @@ instance PGPickle Log where
                                   Just (0, Pickle.o tag, Binary) ]
   fromResult result          =  mapM fromTuple =<< unpackResult result
    where
-    fromTuple               ::  [Maybe ByteString] -> IO Log
-    fromTuple tuple@[Just i, Just t, Just ct, Just tag] = do
-      tag'                  <-  unescapeBytea tag
-      maybe (msg tuple) return $ do uuid'         <-  Pickle.i i
-                                    timestamp'    <-  Pickle.i t
-                                    client_time'  <-  Pickle.i ct
-                                    tag''         <-  Pickle.i =<< tag'
-                                    Just ( Log uuid' timestamp'
-                                               client_time' tag'' )
-    fromTuple tuple          =  msg tuple
-    msg tuple = error ("Bad SQL tuple for Log: " ++ show tuple)
+    fromTuple tuple          =  case tuple of
+      [Just i, Just t, Just ct, Just tag] -> do
+        tag'                <-  unescapeBytea tag
+        maybe err ioRight $ do uuid'         <-  Pickle.i i
+                               timestamp'    <-  Pickle.i t
+                               client_time'  <-  Pickle.i ct
+                               tag''         <-  Pickle.i =<< tag'
+                               Just (Log uuid' timestamp' client_time' tag'')
+      _                     ->  err
+     where
+      err = ioLeft ("Bad SQL tuple for Log: " `mappend` showTuple tuple)
 
 
 instance PGPickle Entry where
@@ -148,24 +149,23 @@ instance PGPickle Entry where
                                   Just (0, bytes,                Binary) ]
   fromResult result          =  mapM fromTuple =<< unpackResult result
    where
-    fromTuple               ::  [Maybe ByteString] -> IO Entry
-    fromTuple tuple@[ Just uuid, Just log, Just parent,
-                      Just timestamp, Just client_time,
-                      Just tag, Just bytes             ] = do
-      tag'                  <-  unescapeBytea tag
-      bytes'                <-  unescapeBytea bytes
-      maybe (msg tuple) return $ do uuid'         <-  Pickle.i uuid
-                                    log'          <-  Pickle.i log
-                                    parent'       <-  Pickle.i parent
-                                    timestamp'    <-  Pickle.i timestamp
-                                    client_time'  <-  Pickle.i client_time
-                                    tag''         <-  Pickle.i =<< tag'
-                                    bytes''       <-  Pickle.i =<< bytes'
-                                    Just ( Entry uuid'      log'    parent'
-                                                 timestamp' client_time'
-                                                 tag''      bytes''         )
-    fromTuple tuple          =  msg tuple
-    msg tuple = error ("Bad SQL tuple for Entry: " ++ show tuple)
+    fromTuple tuple          =  case tuple of
+      [ Just uuid, Just log, Just parent, Just timestamp,
+        Just client_time, Just tag, Just bytes           ] -> do
+        tag'                <-  unescapeBytea tag
+        bytes'              <-  unescapeBytea bytes
+        maybe err ioRight $ do uuid'         <-  Pickle.i uuid
+                               log'          <-  Pickle.i log
+                               parent'       <-  Pickle.i parent
+                               timestamp'    <-  Pickle.i timestamp
+                               client_time'  <-  Pickle.i client_time
+                               tag''         <-  Pickle.i =<< tag'
+                               bytes''       <-  Pickle.i =<< bytes'
+                               Just ( Entry uuid' log' parent' timestamp'
+                                            client_time' tag'' bytes''    )
+      _                     ->  err
+     where
+      err = ioLeft ("Bad SQL tuple for Entry: " `mappend` showTuple tuple)
 
 
 unpackResult                ::  Result -> IO [[Maybe ByteString]]
@@ -175,5 +175,20 @@ unpackResult result          =  do
   (sequence . (sequence <$>))
     [ [ getvalue' result r c | c <- toColumn <$> [0..(columns - 1)] ]
                              | r <- toRow <$> [0..(rows - 1)]       ]
+
+
+showTuple                   ::  [Maybe ByteString] -> ByteString
+showTuple tuple | tooBig     =  take 1021 text `mappend` "..."
+                | otherwise  =  text
+ where
+  tooBig                     =  length text > 1024
+  text                       =  unwords (render <$> tuple)
+  render (Just bytes)        =  (pack . show) bytes
+  render Nothing             =  "!"
+
+
+ioLeft                       =  return . Left
+
+ioRight                      =  return . Right
 
 
