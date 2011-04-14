@@ -126,15 +126,16 @@ instance PGPickle Log where
   fromResult result          =  mapM fromTuple =<< unpackResult result
    where
     fromTuple               ::  [Maybe ByteString] -> IO Log
-    fromTuple [Just i, Just t, Just ct, Just tag] = do
+    fromTuple tuple@[Just i, Just t, Just ct, Just tag] = do
       tag'                  <-  unescapeBytea tag
-      maybe msg return $ do uuid'              <-  Pickle.i i
-                            timestamp'         <-  Pickle.i t
-                            client_time'       <-  Pickle.i ct
-                            tag''              <-  Pickle.i =<< tag'
-                            Just (Log uuid' timestamp' client_time' tag'')
-    fromTuple _              =  msg
-    msg                      =  error "Bad SQL tuple for Log."
+      maybe (msg tuple) return $ do uuid'         <-  Pickle.i i
+                                    timestamp'    <-  Pickle.i t
+                                    client_time'  <-  Pickle.i ct
+                                    tag''         <-  Pickle.i =<< tag'
+                                    Just ( Log uuid' timestamp'
+                                               client_time' tag'' )
+    fromTuple tuple          =  msg tuple
+    msg tuple = error ("Bad SQL tuple for Log: " ++ show tuple)
 
 
 instance PGPickle Entry where
@@ -148,21 +149,23 @@ instance PGPickle Entry where
   fromResult result          =  mapM fromTuple =<< unpackResult result
    where
     fromTuple               ::  [Maybe ByteString] -> IO Entry
-    fromTuple [ Just uuid, Just log, Just parent, Just timestamp,
-                Just client_time, Just tag, Just bytes           ] = do
+    fromTuple tuple@[ Just uuid, Just log, Just parent,
+                      Just timestamp, Just client_time,
+                      Just tag, Just bytes             ] = do
       tag'                  <-  unescapeBytea tag
       bytes'                <-  unescapeBytea bytes
-      maybe msg return $ do uuid'              <-  Pickle.i uuid
-                            log'               <-  Pickle.i log
-                            parent'            <-  Pickle.i parent
-                            timestamp'         <-  Pickle.i timestamp
-                            client_time'       <-  Pickle.i client_time
-                            tag''              <-  Pickle.i =<< tag'
-                            bytes''            <-  Pickle.i =<< bytes'
-                            Just ( Entry uuid' log' parent' timestamp'
-                                         client_time' tag'' bytes''    )
-    fromTuple _              =  msg
-    msg                      =  error "Bad SQL tuple for Entry."
+      maybe (msg tuple) return $ do uuid'         <-  Pickle.i uuid
+                                    log'          <-  Pickle.i log
+                                    parent'       <-  Pickle.i parent
+                                    timestamp'    <-  Pickle.i timestamp
+                                    client_time'  <-  Pickle.i client_time
+                                    tag''         <-  Pickle.i =<< tag'
+                                    bytes''       <-  Pickle.i =<< bytes'
+                                    Just ( Entry uuid'      log'    parent'
+                                                 timestamp' client_time'
+                                                 tag''      bytes''         )
+    fromTuple tuple          =  msg tuple
+    msg tuple = error ("Bad SQL tuple for Entry: " ++ show tuple)
 
 
 unpackResult                ::  Result -> IO [[Maybe ByteString]]

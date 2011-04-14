@@ -27,8 +27,9 @@
  .  Connect to your server with psql and examine the tables:
 
     postgres=> \x
-    postgres=> SELECT * FROM logl.entry_with_backedge ;
+    postgres=> SELECT * FROM logl.entry_with_pointers;
     -[ RECORD 1 ]-------------------------------------
+    log         | aaaaaaa0-bbbb-cccc-dddd-eeeeeeeeeeee
     parent      | aaaaaaa0-bbbb-cccc-dddd-eeeeeeeeeeee
     uuid        | aaaaaaaa-bbb0-cccc-dddd-eeeeeeeeeeee
     timestamp   | 2011-04-07 03:05:49.112+00
@@ -36,6 +37,7 @@
     tag         | entry0
     bytes       | data0
     -[ RECORD 2 ]-------------------------------------
+    log         | aaaaaaa0-bbbb-cccc-dddd-eeeeeeeeeeee
     parent      | aaaaaaaa-bbb0-cccc-dddd-eeeeeeeeeeee
     uuid        | aaaaaaaa-bbb1-cccc-dddd-eeeeeeeeeeee
     timestamp   | 2011-04-07 03:05:49.54772+00

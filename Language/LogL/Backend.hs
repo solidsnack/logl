@@ -111,10 +111,9 @@ instance Backend Postgres where
     form_tree :: Task (Maybe (Tree Entry)) ---------------------------------
               -> IO (Info Postgres, Status (Maybe (Tree Entry)))
     form_tree task           =  do
-      res                   <-  execTask PG.Binary
+      res                   <-  execTask PG.Text
       case res of
         Left err            ->  return (err, ERROR)
---                Right _   ->  return ("", OK Nothing)
         Right result        ->  do
           entries           <-  PG.fromResult result
           case entries of [ ] -> return ("", OK Nothing)

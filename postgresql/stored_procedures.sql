@@ -75,8 +75,8 @@ BEGIN
   BEGIN
     -- We already have an index for this is in pointers so no need to
     -- create a fresh table.
-    CREATE VIEW     logl.entry_with_backedge AS
-         SELECT     parent, logl.entry.*
+    CREATE VIEW     logl.entry_with_pointers AS
+         SELECT     log, parent, logl.entry.*
            FROM     logl.pointers, logl.entry
           WHERE     uuid = child;
     RETURN NEXT    'logl.parent_to_children';
@@ -122,7 +122,7 @@ $$ LANGUAGE plpgsql STRICT;
 
 --  RetrieveSubtree         ::  ID Log -> ID Entry -> Task (Tree Entry)
 CREATE OR REPLACE FUNCTION logl.retrieve_subtree(uuid, uuid)
-RETURNS SETOF logl.entry_with_backedge AS $$
+RETURNS SETOF logl.entry_with_pointers AS $$
 DECLARE
   root uuid;
   roots uuid[] := ARRAY[$2];
@@ -138,7 +138,7 @@ BEGIN
     IF roots = ARRAY[]::uuid[] THEN
       EXIT;
     END IF;
-    RETURN QUERY SELECT * FROM logl.entry_with_backedge
+    RETURN QUERY SELECT * FROM logl.entry_with_pointers
                          WHERE uuid IN (SELECT * FROM unnest(roots));
     next_roots := ARRAY[]::uuid[];
     FOR root IN (SELECT * FROM unnest(roots)) LOOP

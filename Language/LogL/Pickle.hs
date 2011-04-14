@@ -60,12 +60,13 @@ short_circuit_date_parser    =  worker (Just Year) ""
     Second                  ->  done <|> r ":00" ":59" Subs (then2d colon)
     Subs                    ->  done <|> do _ <- char '.'
                                             d <- unpack <$> upto 12 isDigit
-                                            _ <- tz
+                                            _ <- utc
                                             let subs = '.':d ++ "Z"
                                             worker Nothing (soFar ++ subs)
    where
-    done                     =  tz >> endOfInput >> worker Nothing soFar
-    tz                       =  string "Z" <|> string " UTC"
+    done                     =  utc >> endOfInput >> worker Nothing soFar
+    utc                      =  choice . (string <$>)
+                             $  ["Z", "+00", " UTC", "+00:00", "+0000"]
     t                        =  (char ' ' <|> char 'T') >> pure 'T'
     colon                    =  char ':'
     dash                     =  char '-'
