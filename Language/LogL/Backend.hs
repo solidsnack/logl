@@ -21,8 +21,6 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Monoid
 import Data.Time.Clock
-import Data.Tree (Tree)
-import qualified Data.Tree as Tree
 import Data.Word
 import System.IO.Error
 import System.Posix.Types (CPid)
@@ -44,7 +42,14 @@ data Task t where
   WriteLog                  ::  Log -> Task ()
   WriteEntry                ::  Entry -> Task ()
   WriteTombstone            ::  ID Log -> Task ()
-  RetrieveSubtree           ::  ID Log -> ID Entry -> Task (Maybe (Tree Entry))
+  RetrieveSubtree           ::  ID Log -> ID Entry -> Task (Map Backedge Entry)
+
+class Backend backend where
+  type Info backend         ::  *
+  type Spec backend         ::  *
+  start                     ::  Spec backend -> IO backend
+  stop                      ::  backend -> IO ()
+  run                       ::  backend -> Task t -> IO (Envelope backend t)
 
 taskName                    ::  Task t -> ByteString
 taskName (WriteLog _)        =  "WriteLog"
@@ -64,12 +69,12 @@ data Status t                =  OK !t | ERROR
 deriving instance (Eq t) => Eq (Status t)
 deriving instance (Show t) => Show (Status t)
 
-class Backend backend where
-  type Info backend         ::  *
-  type Spec backend         ::  *
-  start                     ::  Spec backend -> IO backend
-  stop                      ::  backend -> IO ()
-  run                       ::  backend -> Task t -> IO (Envelope backend t)
+{-| Tuple of @(parent, child)@ IDs.
+ -}
+newtype Backedge             =  Backedge (ID Entry, ID Entry)
+deriving instance Eq Backedge
+deriving instance Ord Backedge
+deriving instance Show Backedge
 
 
 data Postgres                =  Postgres { conninfo :: PG.Conninfo,
@@ -100,7 +105,7 @@ instance Backend Postgres where
       WriteLog _            ->  stat_only task
       WriteEntry _          ->  stat_only task
       WriteTombstone _      ->  stat_only task
-      RetrieveSubtree _ _   ->  form_tree task
+      RetrieveSubtree _ _   ->  form_map task
     (text, params)           =  paramsForPGExec task
     execTask otype           =  do
       res                   <-  PG.execParams conn text params otype
@@ -110,15 +115,15 @@ instance Backend Postgres where
       res                   <-  execTask PG.Text
       case res of Left err  ->  return (err, ERROR)
                   Right _   ->  return ("", OK ())
-    form_tree :: Task (Maybe (Tree Entry)) ---------------------------------
-              -> IO (Info Postgres, Status (Maybe (Tree Entry)))
-    form_tree task           =  do
+    form_map :: Task (Map Backedge Entry) ---------------------------------
+              -> IO (Info Postgres, Status (Map Backedge Entry))
+    form_map task            =  do
       res                   <-  execTask PG.Text
       case res of
         Left err            ->  return (err, ERROR)
         Right result        ->  do
           (errors, okay)    <-  partitionEithers <$> PG.fromResult result
-          return ((("",) . OK . topSort) okay)
+          return ((("",) . OK . buildMap) okay)
 
 
 pgSetupCommands             ::  ByteString
@@ -204,10 +209,8 @@ envelope io                  =  do
   stop                      <-  getCurrentTime
   return $ Envelope start stop msg val
 
-
-topSort                     ::  [Entry] -> Maybe (Tree Entry)
-topSort list                 =  case list of
-  []                        ->  Nothing
-  [entry]                   ->  Just (Tree.Node entry [])
-  entry:_                   ->  Just (Tree.Node entry [])
+buildMap                    ::  [Entry] -> Map Backedge Entry
+buildMap                     =  List.foldl' insert' mempty
+ where
+  insert' map e@Entry{..}    =  Map.insert (Backedge (parent, uuid)) e map
 
