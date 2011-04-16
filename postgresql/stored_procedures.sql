@@ -46,7 +46,7 @@ BEGIN
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
     CREATE TABLE    logl.tombstone
-      ( log         uuid PRIMARY KEY REFERENCES logl.log ON DELETE CASCADE,
+      ( log         uuid PRIMARY KEY, -- REFERENCES logl.log
         timestamp   timestamp with time zone NOT NULL                       );
     CREATE INDEX   "tombstone/timestamp" ON logl.tombstone (timestamp);
     COMMENT ON TABLE logl.tombstone IS
@@ -55,8 +55,8 @@ BEGIN
   EXCEPTION WHEN duplicate_table THEN END;
   BEGIN
     CREATE TABLE    logl.pointers
-      ( child       uuid PRIMARY KEY REFERENCES logl.entry ON DELETE CASCADE,
-        log         uuid REFERENCES logl.log,
+      ( child       uuid PRIMARY KEY, -- REFERENCES logl.entry
+        log         uuid, -- REFERENCES logl.log
         parent      uuid NOT NULL                                             );
     CREATE INDEX   "pointers/parent" ON logl.pointers (parent);
     CREATE INDEX   "pointers/log" ON logl.pointers (log);
