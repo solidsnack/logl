@@ -10,6 +10,7 @@
   #-}
 module Language.LogL.Backend where
 
+import Prelude hiding (unlines)
 import Control.Applicative
 import Control.Concurrent
 import Control.Exception
@@ -79,24 +80,25 @@ deriving instance Show Backedge
 
 data Postgres                =  Postgres { conninfo :: PG.Conninfo,
                                            conn     :: PG.Connection,
-                                           meta     :: MVar CPid,
+                                           pid      :: CPid,
                                            lock     :: MVar ()       }
 deriving instance Eq Postgres
 instance Show Postgres where
   show Postgres{..} = "Postgres " ++ unpack (PG.renderconninfo conninfo)
 instance Backend Postgres where
-  type Info Postgres         =  ByteString
+  type Info Postgres         =  (CPid, ByteString)
   type Spec Postgres         =  PG.Conninfo
   start conninfo             =  do
     conn                    <-  PG.connectdb (PG.renderconninfo conninfo)
-    stat                    <-  PG.setClientEncoding conn "UTF8"
-    when (not stat) (error "Failed to set encoding of PG connection.")
+    stat                    <-  PG.status conn
+    when (stat /= PG.ConnectionOk) (error "Failed to connect.")
+    encodingStat            <-  PG.setClientEncoding conn "UTF8"
+    when (not encodingStat) (error "Failed to set encoding of PG connection.")
     guarded <- PG.guard "Connection setup." =<< PG.exec conn pgSetupCommands
     case guarded of
       Left b                ->  error (unpack b)
       Right result          ->  do pid <- PG.backendPID conn
-                                   Postgres conninfo conn <$> newMVar pid
-                                                          <*> newMVar ()
+                                   Postgres conninfo conn pid <$> newMVar ()
   stop Postgres{..}          =  PG.finish conn >> takeMVar lock
   run Postgres{..} task      =  (envelope . withMVar' lock) (dispatch task)
    where
@@ -108,22 +110,24 @@ instance Backend Postgres where
       RetrieveSubtree _ _   ->  form_map task
     (text, params)           =  paramsForPGExec task
     execTask otype           =  do
+      --  TODO: Try to run, catch failure, reconnect, if reconnect fails,
+      --        error out with a message.
       res                   <-  PG.execParams conn text params otype
       PG.guard (mconcat ["Task: ", taskName task, "."]) res
     stat_only               ::  Task () -> IO (Info Postgres, Status ())
     stat_only task           =  do
       res                   <-  execTask PG.Text
-      case res of Left err  ->  return (err, ERROR)
-                  Right _   ->  return ("", OK ())
+      case res of Left err  ->  return ((pid, err), ERROR)
+                  Right _   ->  return ((pid, ""), OK ())
     form_map :: Task (Map Backedge Entry) ---------------------------------
-              -> IO (Info Postgres, Status (Map Backedge Entry))
+             -> IO (Info Postgres, Status (Map Backedge Entry))
     form_map task            =  do
       res                   <-  execTask PG.Text
       case res of
-        Left err            ->  return (err, ERROR)
+        Left err            ->  return ((pid, err), ERROR)
         Right result        ->  do
           (errors, okay)    <-  partitionEithers <$> PG.fromResult result
-          return ((("",) . OK . buildMap) okay)
+          return ((((pid, unlines errors),) . OK . buildMap) okay)
 
 
 pgSetupCommands             ::  ByteString

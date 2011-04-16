@@ -192,3 +192,5 @@ ioLeft                       =  return . Left
 ioRight                      =  return . Right
 
 
+deriving instance Eq ConnStatus
+
