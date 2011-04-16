@@ -12,7 +12,7 @@ import Data.Tree
 import Data.Vector
 
 import Language.LogL.Tag (Tag)
-import qualified Language.LogL.UUID as UUID
+import Language.LogL.UUID
 import Language.LogL.Pickle
 
 
@@ -39,13 +39,13 @@ deriving instance Eq Entry
 deriving instance Ord Entry
 deriving instance Show Entry
 
-data ID t                    =  ID !UUID.V1
+data ID t                    =  ID !UUID
 deriving instance Eq (ID t)
 deriving instance Ord (ID t)
 deriving instance Show (ID t)
 instance Pickle (ID t) where
   i                          =  fmap ID . i
-  o (ID v1)                  =  o v1
+  o (ID uuid)                =  o uuid
 instance IsString (ID t) where
   fromString                 =  fromJust . i . pack
 
