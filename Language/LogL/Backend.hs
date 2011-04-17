@@ -145,35 +145,6 @@ paramsForPGExec task         =  case task of
                                     Just (0, Pickle.o idE, PG.Text) ] )
 
 
---data SQLite
---  = SQLite { db :: SQLite3.Database, path :: String, lock :: MVar () }
---instance Backend SQLite where
---  type Info SQLite           =  ByteString
---  type Spec SQLite           =  String
---  start path                 =  do
---    db                      <-  SQLite3.open path
---    mapM_ (sqlite_one_step db) $(Macros.blocks_list "./sqlite/ddl.sql")
---    SQLite db path <$> newMVar ()
---  stop SQLite{..}            =  withMVar' lock (SQLite3.close db)
---  run SQLite{..} queries     =  withMVar' lock . sequence
---                             $  (envelope . run_once) <$> queries
---   where
---    check_exc exc = (guard . isUserError) exc >> Just (ioeGetErrorString exc)
---    run_once q               =  do
---      result                <-  tryJust check_exc $ do
---                                    stmt <- SQLite3.prepare db ""
---                                    return ERROR
---      return $ case result of
---        Left msg            ->  (Pickle.o msg, ERROR)
---        Right val           ->  ("", val)
-
---sqlite_one_step             ::  SQLite3.Database -> String -> IO ()
---sqlite_one_step db str       =  do
---  stmt                      <-  SQLite3.prepare db str
---  _                         <-  SQLite3.step stmt
---  SQLite3.finalize stmt
-
-
 data Timeout i               =  Timeout { micros :: Word32, worker :: i }
 data TimeoutInfo i           =  TIMEOUT | (Backend i) => COMPLETED (Info i)
 instance (Backend i) => Backend (Timeout i) where
