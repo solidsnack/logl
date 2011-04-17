@@ -56,7 +56,7 @@ BEGIN
   BEGIN
     CREATE TABLE    logl.pointers
       ( child       uuid PRIMARY KEY, -- REFERENCES logl.entry
-        log         uuid, -- REFERENCES logl.log
+        log         uuid NOT NULL, -- REFERENCES logl.log
         parent      uuid NOT NULL                                             );
     CREATE INDEX   "pointers/parent" ON logl.pointers (parent);
     CREATE INDEX   "pointers/log" ON logl.pointers (log);
