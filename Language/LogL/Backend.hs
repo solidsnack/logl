@@ -174,32 +174,32 @@ paramsForPGExec task         =  case task of
 --  SQLite3.finalize stmt
 
 
---data Timeout i               =  Timeout { wait :: Word16, worker :: i }
---data TimeoutInfo i           =  TIMEOUT | (Backend i) => COMPLETED (Info i)
---instance (Backend i) => Backend (Timeout i) where
---  type Info (Timeout i)      =  TimeoutInfo i
---  type Spec (Timeout i)      =  (Word16, Spec i)
---  start (wait, spec)         =  Timeout wait <$> start spec
---  stop Timeout{..}           =  stop worker
---  run Timeout{..} q          =  envelope $ do
---    res                     <-  timeout wait (run worker q)
---    return $ case res of
---      Just (Envelope _ _ info val) -> (COMPLETED info, val)
---      Nothing               ->  (TIMEOUT, ERROR)
+data Timeout i               =  Timeout { micros :: Word32, worker :: i }
+data TimeoutInfo i           =  TIMEOUT | (Backend i) => COMPLETED (Info i)
+instance (Backend i) => Backend (Timeout i) where
+  type Info (Timeout i)      =  TimeoutInfo i
+  type Spec (Timeout i)      =  (Word32, Spec i)
+  start (micros, spec)       =  Timeout micros <$> start spec
+  stop Timeout{..}           =  stop worker
+  run Timeout{..} q          =  envelope $ do
+    res                     <-  timeout micros (run worker q)
+    return $ case res of
+      Just (Envelope _ _ info val) -> (COMPLETED info, val)
+      Nothing               ->  (TIMEOUT, ERROR)
 
---timeout                     ::  Word16 -> IO t -> IO (Maybe t)
---timeout w io                 =  do
---  output                    <-  newEmptyMVar
---  alarm                     <-  newEmptyMVar
---  worker                    <-  forkIO $ do
---                                  res    <- io
---                                  ontime <- tryPutMVar output (Just res)
---                                  when ontime (killThread =<< takeMVar alarm)
---  (putMVar alarm =<<) . forkIO $ do
---                          threadDelay (fromIntegral w)
---                          overtime <- tryPutMVar output Nothing
---                          when overtime (killThread worker)
---  takeMVar output
+timeout                     ::  Word32 -> IO t -> IO (Maybe t)
+timeout w io                 =  do
+  output                    <-  newEmptyMVar
+  alarm                     <-  newEmptyMVar
+  worker                    <-  forkIO $ do
+                                  res    <- io
+                                  ontime <- tryPutMVar output (Just res)
+                                  when ontime (killThread =<< takeMVar alarm)
+  (putMVar alarm =<<) . forkIO $ do
+                          threadDelay (fromIntegral w)
+                          overtime <- tryPutMVar output Nothing
+                          when overtime (killThread worker)
+  takeMVar output
 
 
 withMVar'                   ::  MVar t' -> IO t -> IO t
