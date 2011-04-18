@@ -156,6 +156,19 @@ paramsForPGExec task         =  case task of
                                     Just (0, Pickle.o idE, PG.Text) ] )
 
 
+data Sharded b               =  Sharded { replicationFactor :: Word8,
+                                          shards            :: [(Word64, b)] }
+deriving instance (Eq b) => Eq (Sharded b)
+deriving instance (Show b) => Show (Sharded b)
+
+instance (Backend b) => Backend (Sharded b) where
+  type Info (Sharded b)      =  [(Word64, Info b)]
+  type Spec (Sharded b)      =  (Word8, [(Word64, Spec b)])
+  start (w, specs)           =  Sharded w <$> mapM (secondM start) specs
+  stop Sharded{..}           =  mapM_ (stop . snd) shards
+  run Sharded{..} task       =  undefined
+
+
 data Timeout b               =  Timeout { micros :: Word32, worker :: b }
 deriving instance (Eq b) => Eq (Timeout b)
 deriving instance (Show b) => Show (Timeout b)
@@ -201,8 +214,13 @@ envelope io                  =  do
   stop                      <-  getCurrentTime
   return $ Envelope start stop msg val
 
+
 buildMap                    ::  [Entry] -> Map Backedge Entry
 buildMap                     =  List.foldl' insert' mempty
  where
   insert' map e@Entry{..}    =  Map.insert (Backedge (parent, uuid)) e map
+
+
+secondM                     ::  (b -> IO c) -> (a, b) -> IO (a, c)
+secondM f (a, b)             =  (a,) <$> f b
 
