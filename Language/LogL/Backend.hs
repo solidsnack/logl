@@ -110,10 +110,14 @@ instance Backend Postgres where
       RetrieveSubtree _ _   ->  form_map task
     (text, params)           =  paramsForPGExec task
     execTask otype           =  do
-      --  TODO: Try to run, catch failure, reconnect, if reconnect fails,
-      --        error out with a message.
-      res                   <-  PG.execParams conn text params otype
-      PG.guard (mconcat ["Task: ", taskName task, "."]) res
+      res <- PG.execParamsInterruptible conn text params otype
+      case res of
+        PG.FailedSend       ->  Left <$> msg -- TODO -- Catch busy connection.
+        PG.FailedPolling    ->  Left <$> msg
+        PG.FailedResult     ->  Left <$> msg
+        PG.Received res     ->  Right <$> return res
+     where
+      msg                    =  maybe "" id <$> PG.errorMessage conn
     stat_only               ::  Task () -> IO (Info Postgres, Status ())
     stat_only task           =  do
       res                   <-  execTask PG.Text
