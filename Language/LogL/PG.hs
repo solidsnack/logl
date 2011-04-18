@@ -206,6 +206,7 @@ execParamsInterruptible conn text params otype = do
   poll                       =  do
     unlessM (consumeInput conn)
             (return FailedPolling)
+            -- TODO -- Extract socket from connection and use select.
             (unlessM (isBusy conn)
                      (maybe FailedResult Received <$> getResult conn)
                      (threadDelay 10000 >> poll)                     )
