@@ -7,6 +7,7 @@
            , TypeFamilies
            , FlexibleContexts
            , TupleSections
+           , UndecidableInstances
   #-}
 module Language.LogL.Backend where
 
@@ -85,8 +86,13 @@ data Postgres                =  Postgres { conninfo :: PG.Conninfo,
 deriving instance Eq Postgres
 instance Show Postgres where
   show Postgres{..} = "Postgres " ++ unpack (PG.renderconninfo conninfo)
+
+data PostgresInfo            =  PostgresInfo CPid PG.Conninfo ByteString
+deriving instance Eq PostgresInfo
+deriving instance Show PostgresInfo
+
 instance Backend Postgres where
-  type Info Postgres         =  (CPid, ByteString)
+  type Info Postgres         =  PostgresInfo
   type Spec Postgres         =  PG.Conninfo
   start conninfo             =  do
     conn                    <-  PG.connectdb (PG.renderconninfo conninfo)
@@ -121,17 +127,18 @@ instance Backend Postgres where
     stat_only               ::  Task () -> IO (Info Postgres, Status ())
     stat_only task           =  do
       res                   <-  execTask PG.Text
-      case res of Left err  ->  return ((pid, err), ERROR)
-                  Right _   ->  return ((pid, ""), OK ())
+      case res of Left err  ->  return (PostgresInfo pid conninfo err, ERROR)
+                  Right _   ->  return (PostgresInfo pid conninfo "", OK ())
     form_map :: Task (Map Backedge Entry) ---------------------------------
              -> IO (Info Postgres, Status (Map Backedge Entry))
     form_map task            =  do
       res                   <-  execTask PG.Text
       case res of
-        Left err            ->  return ((pid, err), ERROR)
+        Left err            ->  return (PostgresInfo pid conninfo err, ERROR)
         Right result        ->  do
           (errors, okay)    <-  partitionEithers <$> PG.fromResult result
-          return ((((pid, unlines errors),) . OK . buildMap) okay)
+          let msg            =  unlines errors
+          return (((PostgresInfo pid conninfo msg,) . OK . buildMap) okay)
 
 
 pgSetupCommands             ::  ByteString
@@ -149,11 +156,17 @@ paramsForPGExec task         =  case task of
                                     Just (0, Pickle.o idE, PG.Text) ] )
 
 
-data Timeout i               =  Timeout { micros :: Word32, worker :: i }
-data TimeoutInfo i           =  TIMEOUT | (Backend i) => COMPLETED (Info i)
-instance (Backend i) => Backend (Timeout i) where
-  type Info (Timeout i)      =  TimeoutInfo i
-  type Spec (Timeout i)      =  (Word32, Spec i)
+data Timeout b               =  Timeout { micros :: Word32, worker :: b }
+deriving instance (Eq b) => Eq (Timeout b)
+deriving instance (Show b) => Show (Timeout b)
+
+data TimeoutInfo b           =  TIMEOUT | COMPLETED (Info b)
+deriving instance (Eq (Info b)) => Eq (TimeoutInfo b)
+deriving instance (Show (Info b)) => Show (TimeoutInfo b)
+
+instance (Show (Info b), Backend b) => Backend (Timeout b) where
+  type Info (Timeout b)      =  TimeoutInfo b
+  type Spec (Timeout b)      =  (Word32, Spec b)
   start (micros, spec)       =  Timeout micros <$> start spec
   stop Timeout{..}           =  stop worker
   run Timeout{..} q          =  envelope $ do
