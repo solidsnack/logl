@@ -7,6 +7,7 @@
            , TypeFamilies
            , FlexibleContexts
            , TupleSections
+           , UndecidableInstances
   #-}
 module Language.LogL.Backend where
 
@@ -85,8 +86,13 @@ data Postgres                =  Postgres { conninfo :: PG.Conninfo,
 deriving instance Eq Postgres
 instance Show Postgres where
   show Postgres{..} = "Postgres " ++ unpack (PG.renderconninfo conninfo)
+
+data PostgresInfo            =  PostgresInfo CPid PG.Conninfo ByteString
+deriving instance Eq PostgresInfo
+deriving instance Show PostgresInfo
+
 instance Backend Postgres where
-  type Info Postgres         =  (CPid, ByteString)
+  type Info Postgres         =  PostgresInfo
   type Spec Postgres         =  PG.Conninfo
   start conninfo             =  do
     conn                    <-  PG.connectdb (PG.renderconninfo conninfo)
@@ -110,24 +116,29 @@ instance Backend Postgres where
       RetrieveSubtree _ _   ->  form_map task
     (text, params)           =  paramsForPGExec task
     execTask otype           =  do
-      --  TODO: Try to run, catch failure, reconnect, if reconnect fails,
-      --        error out with a message.
-      res                   <-  PG.execParams conn text params otype
-      PG.guard (mconcat ["Task: ", taskName task, "."]) res
+      res <- PG.execParamsInterruptible conn text params otype
+      case res of
+        PG.FailedSend       ->  Left <$> msg -- TODO -- Catch busy connection.
+        PG.FailedPolling    ->  Left <$> msg
+        PG.FailedResult     ->  Left <$> msg
+        PG.Received res     ->  Right <$> return res
+     where
+      msg                    =  maybe "" id <$> PG.errorMessage conn
     stat_only               ::  Task () -> IO (Info Postgres, Status ())
     stat_only task           =  do
       res                   <-  execTask PG.Text
-      case res of Left err  ->  return ((pid, err), ERROR)
-                  Right _   ->  return ((pid, ""), OK ())
+      case res of Left err  ->  return (PostgresInfo pid conninfo err, ERROR)
+                  Right _   ->  return (PostgresInfo pid conninfo "", OK ())
     form_map :: Task (Map Backedge Entry) ---------------------------------
              -> IO (Info Postgres, Status (Map Backedge Entry))
     form_map task            =  do
       res                   <-  execTask PG.Text
       case res of
-        Left err            ->  return ((pid, err), ERROR)
+        Left err            ->  return (PostgresInfo pid conninfo err, ERROR)
         Right result        ->  do
           (errors, okay)    <-  partitionEithers <$> PG.fromResult result
-          return ((((pid, unlines errors),) . OK . buildMap) okay)
+          let msg            =  unlines errors
+          return (((PostgresInfo pid conninfo msg,) . OK . buildMap) okay)
 
 
 pgSetupCommands             ::  ByteString
@@ -145,61 +156,51 @@ paramsForPGExec task         =  case task of
                                     Just (0, Pickle.o idE, PG.Text) ] )
 
 
---data SQLite
---  = SQLite { db :: SQLite3.Database, path :: String, lock :: MVar () }
---instance Backend SQLite where
---  type Info SQLite           =  ByteString
---  type Spec SQLite           =  String
---  start path                 =  do
---    db                      <-  SQLite3.open path
---    mapM_ (sqlite_one_step db) $(Macros.blocks_list "./sqlite/ddl.sql")
---    SQLite db path <$> newMVar ()
---  stop SQLite{..}            =  withMVar' lock (SQLite3.close db)
---  run SQLite{..} queries     =  withMVar' lock . sequence
---                             $  (envelope . run_once) <$> queries
---   where
---    check_exc exc = (guard . isUserError) exc >> Just (ioeGetErrorString exc)
---    run_once q               =  do
---      result                <-  tryJust check_exc $ do
---                                    stmt <- SQLite3.prepare db ""
---                                    return ERROR
---      return $ case result of
---        Left msg            ->  (Pickle.o msg, ERROR)
---        Right val           ->  ("", val)
+data Sharded b               =  Sharded { replicationFactor :: Word8,
+                                          shards            :: [(Word64, b)] }
+deriving instance (Eq b) => Eq (Sharded b)
+deriving instance (Show b) => Show (Sharded b)
 
---sqlite_one_step             ::  SQLite3.Database -> String -> IO ()
---sqlite_one_step db str       =  do
---  stmt                      <-  SQLite3.prepare db str
---  _                         <-  SQLite3.step stmt
---  SQLite3.finalize stmt
+instance (Backend b) => Backend (Sharded b) where
+  type Info (Sharded b)      =  [(Word64, Info b)]
+  type Spec (Sharded b)      =  (Word8, [(Word64, Spec b)])
+  start (w, specs)           =  Sharded w <$> mapM (secondM start) specs
+  stop Sharded{..}           =  mapM_ (stop . snd) shards
+  run Sharded{..} task       =  undefined
 
 
---data Timeout i               =  Timeout { wait :: Word16, worker :: i }
---data TimeoutInfo i           =  TIMEOUT | (Backend i) => COMPLETED (Info i)
---instance (Backend i) => Backend (Timeout i) where
---  type Info (Timeout i)      =  TimeoutInfo i
---  type Spec (Timeout i)      =  (Word16, Spec i)
---  start (wait, spec)         =  Timeout wait <$> start spec
---  stop Timeout{..}           =  stop worker
---  run Timeout{..} q          =  envelope $ do
---    res                     <-  timeout wait (run worker q)
---    return $ case res of
---      Just (Envelope _ _ info val) -> (COMPLETED info, val)
---      Nothing               ->  (TIMEOUT, ERROR)
+data Timeout b               =  Timeout { micros :: Word32, worker :: b }
+deriving instance (Eq b) => Eq (Timeout b)
+deriving instance (Show b) => Show (Timeout b)
 
---timeout                     ::  Word16 -> IO t -> IO (Maybe t)
---timeout w io                 =  do
---  output                    <-  newEmptyMVar
---  alarm                     <-  newEmptyMVar
---  worker                    <-  forkIO $ do
---                                  res    <- io
---                                  ontime <- tryPutMVar output (Just res)
---                                  when ontime (killThread =<< takeMVar alarm)
---  (putMVar alarm =<<) . forkIO $ do
---                          threadDelay (fromIntegral w)
---                          overtime <- tryPutMVar output Nothing
---                          when overtime (killThread worker)
---  takeMVar output
+data TimeoutInfo b           =  TIMEOUT | COMPLETED (Info b)
+deriving instance (Eq (Info b)) => Eq (TimeoutInfo b)
+deriving instance (Show (Info b)) => Show (TimeoutInfo b)
+
+instance (Show (Info b), Backend b) => Backend (Timeout b) where
+  type Info (Timeout b)      =  TimeoutInfo b
+  type Spec (Timeout b)      =  (Word32, Spec b)
+  start (micros, spec)       =  Timeout micros <$> start spec
+  stop Timeout{..}           =  stop worker
+  run Timeout{..} q          =  envelope $ do
+    res                     <-  timeout micros (run worker q)
+    return $ case res of
+      Just (Envelope _ _ info val) -> (COMPLETED info, val)
+      Nothing               ->  (TIMEOUT, ERROR)
+
+timeout                     ::  Word32 -> IO t -> IO (Maybe t)
+timeout w io                 =  do
+  output                    <-  newEmptyMVar
+  alarm                     <-  newEmptyMVar
+  worker                    <-  forkIO $ do
+                                  res    <- io
+                                  ontime <- tryPutMVar output (Just res)
+                                  when ontime (killThread =<< takeMVar alarm)
+  (putMVar alarm =<<) . forkIO $ do
+                          threadDelay (fromIntegral w)
+                          overtime <- tryPutMVar output Nothing
+                          when overtime (killThread worker)
+  takeMVar output
 
 
 withMVar'                   ::  MVar t' -> IO t -> IO t
@@ -213,8 +214,13 @@ envelope io                  =  do
   stop                      <-  getCurrentTime
   return $ Envelope start stop msg val
 
+
 buildMap                    ::  [Entry] -> Map Backedge Entry
 buildMap                     =  List.foldl' insert' mempty
  where
   insert' map e@Entry{..}    =  Map.insert (Backedge (parent, uuid)) e map
+
+
+secondM                     ::  (b -> IO c) -> (a, b) -> IO (a, c)
+secondM f (a, b)             =  (a,) <$> f b
 

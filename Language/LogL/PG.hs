@@ -7,12 +7,14 @@ module Language.LogL.PG where
 
 import Prelude hiding (unwords, length, take)
 import Control.Applicative
+import Control.Concurrent
 import Control.Exception
 import Control.Monad.Error
 import Data.ByteString.Char8
 import Data.Either
 import Data.Monoid
 import Data.Word
+import System.IO (Handle)
 
 import Database.PQ
 
@@ -187,10 +189,47 @@ showTuple tuple | tooBig     =  take 1021 text `mappend` "..."
   render Nothing             =  "!"
 
 
+renderResult                ::  Handle -> Result -> IO ()
+renderResult handle result   =  Database.PQ.print handle result defaultPrintOpt
+
+
+{-| A variant of execParams that is interruptible and thread friendly. Under
+    the hood, it uses the async interface, with polling handled in Haskell so
+    that the running thread can be killed.
+ -}
+execParamsInterruptible
+ :: Connection -> ByteString -> [Maybe (Oid, ByteString, Format)] -> Format
+ -> IO ExecResult
+execParamsInterruptible conn text params otype = do
+  unlessM (sendQueryParams conn text params otype) (return FailedSend) poll
+ where
+  poll                       =  do
+    unlessM (consumeInput conn)
+            (return FailedPolling)
+            (unlessM (isBusy conn)
+                     (maybe FailedResult Received <$> getResult conn)
+                     (threadDelay 10000 >> poll)                     )
+
+
+data ExecResult              =  FailedSend
+                             |  FailedPolling
+                             |  FailedResult
+                             |  Received Result
+deriving instance Eq ExecResult
+deriving instance Show ExecResult
+
+
 ioLeft                       =  return . Left
 
 ioRight                      =  return . Right
 
+unlessM                     ::  (Monad m) => m Bool -> m t -> m t -> m t
+unlessM conditional ifNotM ifM = do stat <- conditional
+                                    if stat then ifNotM else ifM
+
 
 deriving instance Eq ConnStatus
+
+deriving instance Eq TransactionStatus
+deriving instance Show TransactionStatus
 
