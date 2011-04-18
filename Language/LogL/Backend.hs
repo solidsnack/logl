@@ -17,6 +17,8 @@ import Control.Concurrent
 import Control.Exception
 import Control.Monad
 import Data.ByteString.Char8
+import Data.Digest.Murmur64
+import Data.UUID
 import Data.Either
 import qualified Data.List as List
 import Data.Map (Map)
@@ -166,7 +168,21 @@ instance (Backend b) => Backend (Sharded b) where
   type Spec (Sharded b)      =  (Word8, [(Word64, Spec b)])
   start (w, specs)           =  Sharded w <$> mapM (secondM start) specs
   stop Sharded{..}           =  mapM_ (stop . snd) shards
-  run Sharded{..} task       =  undefined
+  run Sharded{..} task       =  do
+    undefined
+    -- Hash task.
+    -- Map over replicationFactor backends, gather info.
+    -- Report success or failure.
+
+shardTask                   ::  Task t -> Word64
+shardTask task               =  shardLog $ case task of
+  WriteLog (Log uuid _ _ _) ->  uuid
+  WriteEntry Entry{..}      ->  log
+  WriteTombstone log        ->  log
+  RetrieveSubtree log _     ->  log
+
+shardLog                    ::  ID Log -> Word64
+shardLog (ID uuid)           =  (asWord64 . hash64) uuid
 
 
 data Timeout b               =  Timeout { micros :: Word32, worker :: b }
