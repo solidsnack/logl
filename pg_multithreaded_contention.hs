@@ -22,21 +22,26 @@ import System.IO.Error
 import Control.Concurrent
 
 
+--main                         =  contend
+--main                         =  interrupt =<< connectdb ""
+main                         =  lessfancy =<< connectdb ""
+
+
 interrupt conn               =  do
-  Just cancelToken          <-  getCancel conn
-  val <- timeout 5000 (query conn)
+--Just cancelToken          <-  getCancel conn
+  val                       <-  timeout 5000 (queryDoesNotBlockKill conn)
   putStrLn "Hello."
-  showLn val
-  --showLn =<< cancel cancelToken
+--showLn val
+--showLn =<< cancel cancelToken
   showLn =<< isBusy conn
-  showLn =<< transactionStatus conn
-  showLn =<< connectPoll conn
-  showLn =<< status conn
- where
-  showLn                     =  putStrLn . show
+--showLn =<< transactionStatus conn
+--showLn =<< connectPoll conn
+--showLn =<< status conn
 
 
-query conn                   =  do
+queryDoesNotBlockKill conn   =  exec conn "SELECT pg_sleep(10);"
+
+queryBlocksKill conn         =  do
   sendQuery conn "SELECT pg_sleep(10);"
   getResult conn
 
@@ -56,4 +61,27 @@ timeout w io                 =  do
   takeMVar output
 
 deriving instance Show TransactionStatus
+
+
+contend                      =  do
+  lock                      <-  newMVar ()
+  worker                    <-  forkIO . withMVar lock . const $ do
+    threadDelay 10000000
+    putStrLn "a"
+  threadDelay 500000
+  killThread worker
+  withMVar lock . const $ putStrLn "b"
+
+
+lessfancy conn               =  do
+  worker                    <-  forkIO $ do queryDoesNotBlockKill conn
+                                            putStrLn "completed"
+  putStrLn "before"
+  threadDelay 500000
+  killThread worker
+  putStrLn "after"
+  showLn =<< isBusy conn
+
+
+showLn                       =  putStrLn . show
 
