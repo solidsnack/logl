@@ -86,9 +86,7 @@ $$ LANGUAGE plpgsql STRICT;
 SELECT "logl#setup"();
 
 
---  Stored procedures for accessing the tables. The foriegn key constraint on
---  pointers and tombstones assures we can not write data for logs that are
---  not known to this node.
+--  Stored procedures for accessing the tables.
 
 --  WriteLog                ::  Log -> Task ()
 CREATE OR REPLACE FUNCTION logl.write_log( uuid, timestamp with time zone,
