@@ -13,6 +13,7 @@ module Language.LogL.Backend where
 
 import Prelude hiding (unlines)
 import Control.Applicative
+import Control.Arrow
 import Control.Concurrent
 import Control.Exception
 import Control.Monad
@@ -72,6 +73,10 @@ deriving instance (Show t, Show (Info b)) => Show (Envelope b t)
 data Status t                =  OK !t | ERROR
 deriving instance (Eq t) => Eq (Status t)
 deriving instance (Show t) => Show (Status t)
+
+ok                          ::  Status t -> Bool
+ok ERROR                     =  False
+ok (OK _)                    =  True
 
 {-| Tuple of @(parent, child)@ IDs.
  -}
@@ -157,22 +162,38 @@ paramsForPGExec task         =  case task of
                                   [ Just (0, Pickle.o idL, PG.Text),
                                     Just (0, Pickle.o idE, PG.Text) ] )
 
-
-data Sharded b               =  Sharded { replicationFactor :: Word8,
-                                          shards            :: [(Word64, b)] }
+{-| The sharded backend multuplexes requests over a collection of backends by
+    by hashing the log ID of the task. In the replication factor tuple, the
+    second element is the number of shards to use for each request; the first
+    element is the number that must return successfully for the sharded
+    backend as a whole to return successfully.
+ -}
+data Sharded b               =  Sharded { replicationFactor :: (Word8, Word8),
+                                          shards            :: Map Word64 b   }
 deriving instance (Eq b) => Eq (Sharded b)
 deriving instance (Show b) => Show (Sharded b)
 
 instance (Backend b) => Backend (Sharded b) where
   type Info (Sharded b)      =  [(Word64, Info b)]
-  type Spec (Sharded b)      =  (Word8, [(Word64, Spec b)])
-  start (w, specs)           =  Sharded w <$> mapM (secondM start) specs
-  stop Sharded{..}           =  mapM_ (stop . snd) shards
-  run Sharded{..} task       =  do
+  type Spec (Sharded b)      =  ((Word8, Word8), Map Word64 (Spec b))
+  start (n_of_m, specs)      =  Sharded n_of_m . Map.fromList <$>
+                                  mapM (secondM start) (Map.assocs specs)
+  stop Sharded{..}           =  mapM_ (stop . snd) (Map.assocs shards)
+  run Sharded{..} task       =  envelope $ do
+    -- TODO -- Fix deadlock.
+    results                 <-  mapM (secondM (flip run task)) shardsToUse
+    let opened               =  second open <$> results
+        infos                =  second snd <$> opened
+--  let results              =  open <$> envelopes
+--      success              =  List.length . List.filter (ok . snd) $ results
     undefined
-    -- Hash task.
-    -- Map over replicationFactor backends, gather info.
-    -- Report success or failure.
+   where
+    (n, m)                   =  replicationFactor
+    key                      =  shardTask task
+    (before, after)          =  List.break ((>= key) . fst) (Map.assocs shards)
+    shardsToUse              =  List.take (fromIntegral m) (after ++ before)
+    open (Envelope _ _ info status) = (info, status)
+
 
 shardTask                   ::  Task t -> Word64
 shardTask task               =  shardLog $ case task of
