@@ -54,7 +54,7 @@ class Backend backend where
   type Spec backend         ::  *
   start                     ::  Spec backend -> IO backend
   stop                      ::  backend -> IO ()
-  run                       ::  backend -> Task t -> IO (Envelope backend t)
+  run :: (Monoid t) => backend -> Task t -> IO (Envelope backend t)
 
 taskName                    ::  Task t -> ByteString
 taskName (WriteLog _)        =  "WriteLog"
@@ -73,6 +73,11 @@ deriving instance (Show t, Show (Info b)) => Show (Envelope b t)
 data Status t                =  OK !t | ERROR
 deriving instance (Eq t) => Eq (Status t)
 deriving instance (Show t) => Show (Status t)
+instance (Monoid t) => Monoid (Status t) where
+  mempty                     =  ERROR
+  mappend (OK a) (OK b)      =  OK (mappend a b)
+  mappend ERROR other        =  other
+  mappend other ERROR        =  other
 
 ok                          ::  Status t -> Bool
 ok ERROR                     =  False
@@ -184,8 +189,7 @@ instance (Backend b) => Backend (Sharded b) where
     results                 <-  mapM (secondM (flip run task)) shardsToUse
     let opened               =  second open <$> results
         infos                =  second snd <$> opened
---  let results              =  open <$> envelopes
---      success              =  List.length . List.filter (ok . snd) $ results
+        merged               =  merge ERROR n (snd . snd <$> opened)
     undefined
    where
     (n, m)                   =  replicationFactor
@@ -193,6 +197,14 @@ instance (Backend b) => Backend (Sharded b) where
     (before, after)          =  List.break ((>= key) . fst) (Map.assocs shards)
     shardsToUse              =  List.take (fromIntegral m) (after ++ before)
     open (Envelope _ _ info status) = (info, status)
+    merge acc 0 []           =  acc
+    merge _   _ []           =  ERROR
+    merge acc 0 [ERROR]      =  acc
+    merge acc 0 [OK t]       =  OK t `mappend` acc
+    merge _   1 [ERROR]      =  ERROR
+    merge acc 1 [OK t]       =  OK t `mappend` acc
+    merge acc i (OK t:tail)  =  merge (OK t `mappend` acc) (i-1) tail
+    merge acc i (ERROR:tail) =  merge acc i tail
 
 
 shardTask                   ::  Task t -> Word64
