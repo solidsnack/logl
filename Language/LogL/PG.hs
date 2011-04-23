@@ -5,7 +5,7 @@
   #-}
 module Language.LogL.PG where
 
-import Prelude hiding (unwords, length, take)
+import Prelude hiding (unwords, length, take, putStrLn)
 import Control.Applicative
 import Control.Concurrent
 import Control.Exception
@@ -201,15 +201,22 @@ execParamsInterruptible
  :: Connection -> ByteString -> [Maybe (Oid, ByteString, Format)] -> Format
  -> IO ExecResult
 execParamsInterruptible conn text params otype = do
+  error "This code does not work."
   unlessM (sendQueryParams conn text params otype) (return FailedSend) poll
  where
   poll                       =  do
-    unlessM (consumeInput conn)
-            (return FailedPolling)
+--  unlessM (consumeInput conn)
+--          (return FailedPolling)
+--          -- TODO -- Extract socket from connection and use select.
+--          (unlessM (isBusy conn)
+--                   (maybe FailedResult Received <$> getResult conn)
+--                   (threadDelay 10000 >> poll)                     )
+    unlessM (putStrLn "Consume." >> consumeInput conn)
+            (putStrLn "Bad poll." >> return FailedPolling)
             -- TODO -- Extract socket from connection and use select.
-            (unlessM (isBusy conn)
-                     (maybe FailedResult Received <$> getResult conn)
-                     (threadDelay 10000 >> poll)                     )
+            (unlessM (putStrLn "isBusy" >> isBusy conn)
+                     (putStrLn "getResult" >> maybe FailedResult Received <$> getResult conn)
+                     (putStrLn "poll" >> threadDelay 10000 >> poll)                     )
 
 
 data ExecResult              =  FailedSend

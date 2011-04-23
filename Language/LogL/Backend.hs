@@ -128,12 +128,16 @@ instance Backend Postgres where
       RetrieveSubtree _ _   ->  form_map task
     (text, params)           =  paramsForPGExec task
     execTask otype           =  do
-      res <- PG.execParamsInterruptible conn text params otype
+      res                   <-  PG.execParams conn text params otype
       case res of
-        PG.FailedSend       ->  Left <$> msg -- TODO -- Catch busy connection.
-        PG.FailedPolling    ->  Left <$> msg
-        PG.FailedResult     ->  Left <$> msg
-        PG.Received res     ->  Right <$> return res
+        Just res            ->  Right <$> return res
+        Nothing             ->  Left <$> msg
+--    res <- PG.execParamsInterruptible conn text params otype
+--    case res of
+--      PG.FailedSend       ->  Left <$> msg -- TODO -- Catch busy connection.
+--      PG.FailedPolling    ->  Left <$> msg
+--      PG.FailedResult     ->  Left <$> msg
+--      PG.Received res     ->  Right <$> return res
      where
       msg                    =  maybe "" id <$> PG.errorMessage conn
     stat_only               ::  Task () -> IO (Info Postgres, Status ())
