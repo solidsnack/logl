@@ -1,0 +1,4 @@
+
+  A given entry (indexed by its Entry ID) in a given Log (indexed by its Log
+  ID) will always resolve to the same text, for all time.
+
