@@ -16,14 +16,15 @@ import Control.Applicative
 
 import Language.LogL.Backend
 import Language.LogL.PG
+import qualified Language.LogL.PG as PG (conninfo)
 import Language.LogL.Syntax
 
 
 conninfos = conn <$> [ "logl0", "logl1", "logl2", "logl3", "logl4",
                        "logl5", "logl6", "logl7", "logl8", "logl9" ]
  where
-  conn dbname = default_conninfo{ dbname=dbname, host="localhost",
-                                  user="logl", password="pwned"    }
+  conn dbname = PG.conninfo{ dbname=dbname, host="localhost",
+                             user="logl", password="pwned"    }
 
 default_sharded             ::  IO (Sharded Postgres)
 default_sharded              =  start ((2,3), conninfos)

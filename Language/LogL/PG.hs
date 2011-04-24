@@ -79,13 +79,41 @@ data Conninfo
                service      ::  ByteString                }
 deriving instance Eq Conninfo
 instance Show Conninfo where
-  show                       =  unpack . renderconninfo
+  show Conninfo{..}          =  unpack $ mconcat
+    ["conninfo{", intercalate ", " nonDefault, "}"]
+   where
+    quote s                  =  '"' `cons` s `snoc` '"'
+    nonDefault = [append k (quote v) | (k, v) <- info, v /= ""]
+    info = [ ("host=", host), -------------------------------------------------
+             ("hostaddr=", hostaddr),
+             ("port=", port),
+             ("dbname=", dbname),
+             ("user=", user),
+             ("password=", password),
+             ("connection_timeout=", connection_timeout),
+             ("client_encoding=", client_encoding),
+             ("options=", options),
+             ("application_name=", application_name),
+             ("fallback_application_name=", fallback_application_name),
+             ("keepalives=", keepalives),
+             ("keepalives_idle=", keepalives_idle),
+             ("keepalives_interval=", keepalives_interval),
+             ("keepalives_count=", keepalives_count),
+             ("sslmode=", sslmode),
+             ("sslcert=", sslcert),
+             ("sslkey=", sslkey),
+             ("sslrootcert=", sslrootcert),
+             ("sslcrl=", sslcrl),
+             ("sslrequirepeer=", sslrequirepeer),
+             ("krbsrvname=", krbsrvname),
+             ("gsslib=", gsslib),
+             ("service=", service) ]
 
 {-| A connnection info object with no parameters set.
  -}
-default_conninfo            ::  Conninfo
-default_conninfo = Conninfo "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
-                            "" "" "" "" "" "" "" ""
+conninfo                    ::  Conninfo
+conninfo                     =  Conninfo "" "" "" "" "" "" "" "" "" "" "" ""
+                                         "" "" "" "" "" "" "" "" "" "" "" ""
 
 {-| Present connection info in the standard conninfo string format. 
  -}

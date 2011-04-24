@@ -60,7 +60,7 @@ import Language.LogL.Syntax
 
 
 local_pg                    ::  IO Postgres
-local_pg                     =  start PG.default_conninfo
+local_pg                     =  start PG.conninfo
 
 
 insert_samples postgres      =  do
