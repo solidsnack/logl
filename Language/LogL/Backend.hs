@@ -17,7 +17,7 @@ import Control.Arrow
 import Control.Concurrent
 import Control.Exception
 import Control.Monad
-import Data.ByteString.Char8
+import Data.ByteString.Char8 hiding (zip)
 import Data.Digest.Murmur64
 import Data.UUID
 import Data.Either
@@ -177,28 +177,32 @@ paramsForPGExec task         =  case task of
     element is the number that must return successfully for the sharded
     backend as a whole to return successfully.
  -}
-data Sharded b               =  Sharded { replicationFactor :: (Word8, Word8),
-                                          shards            :: Map Word64 b   }
+data Sharded b               =  Sharded { n_of_m :: (Word8, Word8),
+                                          shards :: [b]            }
 deriving instance (Eq b) => Eq (Sharded b)
 deriving instance (Show b) => Show (Sharded b)
 
 instance (Backend b) => Backend (Sharded b) where
-  type Info (Sharded b)      =  [(Word64, Info b)]
-  type Spec (Sharded b)      =  ((Word8, Word8), Map Word64 (Spec b))
-  start (n_of_m, specs)      =  Sharded n_of_m . Map.fromList <$>
-                                  mapM (secondM start) (Map.assocs specs)
-  stop Sharded{..}           =  mapM_ (stop . snd) (Map.assocs shards)
+  type Info (Sharded b)      =  [Info b]
+  type Spec (Sharded b)      =  ((Word8, Word8), [Spec b])
+  start (n_of_m, specs)      =  Sharded n_of_m <$> mapM start specs
+  stop Sharded{..}           =  mapM_ stop shards
   run Sharded{..} task       =  envelope $ do
     -- TODO -- Fix deadlock.
-    results                 <-  mapM (secondM (flip run task)) shardsToUse
-    let opened               =  second open <$> results
-        infos                =  second snd <$> opened
-        merged               =  merge ERROR n (snd . snd <$> opened)
-    undefined
+    results                 <-  mapM (flip run task) shardsToUse
+    let opened               =  open <$> results
+        infos                =  fst <$> opened
+        merged               =  merge ERROR n (snd <$> opened)
+    return (infos, merged)
    where
-    (n, m)                   =  replicationFactor
+    (n, m)                   =  n_of_m
     key                      =  shardTask task
-    (before, after)          =  List.break ((>= key) . fst) (Map.assocs shards)
+    fractional              ::  Double
+    fractional               =  fromIntegral key
+                             /  fromIntegral (maxBound :: Word64)
+    index                   ::  Int
+    index = floor (fractional * fromIntegral (List.length shards))
+    (before, after) = (List.take index shards, List.drop index shards)
     shardsToUse              =  List.take (fromIntegral m) (after ++ before)
     open (Envelope _ _ info status) = (info, status)
     merge acc 0 []           =  acc
@@ -209,7 +213,6 @@ instance (Backend b) => Backend (Sharded b) where
     merge acc 1 [OK t]       =  OK t `mappend` acc
     merge acc i (OK t:tail)  =  merge (OK t `mappend` acc) (i-1) tail
     merge acc i (ERROR:tail) =  merge acc i tail
-
 
 shardTask                   ::  Task t -> Word64
 shardTask task               =  shardLog $ case task of
