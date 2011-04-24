@@ -132,6 +132,7 @@ instance Backend Postgres where
       case res of
         Just res            ->  Right <$> return res
         Nothing             ->  Left <$> msg
+      -- TODO -- Fix and use the interruptible version.
 --    res <- PG.execParamsInterruptible conn text params otype
 --    case res of
 --      PG.FailedSend       ->  Left <$> msg -- TODO -- Catch busy connection.

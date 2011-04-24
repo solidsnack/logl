@@ -194,6 +194,7 @@ renderResult                ::  Handle -> Result -> IO ()
 renderResult handle result   =  Database.PQ.print handle result defaultPrintOpt
 
 
+-- TODO -- Make this code actually work.
 {-| A variant of execParams that is interruptible and thread friendly. Under
     the hood, it uses the async interface, with polling handled in Haskell so
     that the running thread can be killed.
