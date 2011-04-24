@@ -78,7 +78,8 @@ data Conninfo
                gsslib       ::  ByteString,
                service      ::  ByteString                }
 deriving instance Eq Conninfo
-deriving instance Show Conninfo
+instance Show Conninfo where
+  show                       =  unpack . renderconninfo
 
 {-| A connnection info object with no parameters set.
  -}
