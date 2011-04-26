@@ -47,8 +47,7 @@ data Task t where
   WriteLog                  ::  Log -> Task ()
   WriteEntry                ::  Entry -> Task ()
   WriteTombstone            ::  ID Log -> Task ()
-  RetrieveForest            ::  ID Log -> ID Entry -> Task (Map Backedge Entry)
-
+  RetrieveForest            ::  ID Log -> ID Entry -> Task [Entry]
 class Backend backend where
   type Info backend         ::  *
   type Spec backend         ::  *
@@ -82,13 +81,6 @@ instance (Monoid t) => Monoid (Status t) where
 ok                          ::  Status t -> Bool
 ok ERROR                     =  False
 ok (OK _)                    =  True
-
-{-| Tuple of @(parent, child)@ IDs.
- -}
-newtype Backedge             =  Backedge (ID Entry, ID Entry)
-deriving instance Eq Backedge
-deriving instance Ord Backedge
-deriving instance Show Backedge
 
 
 data Postgres                =  Postgres { conninfo :: PG.Conninfo,
@@ -146,8 +138,7 @@ instance Backend Postgres where
       res                   <-  execTask PG.Text
       case res of Left err  ->  return (PostgresInfo pid conninfo err, ERROR)
                   Right _   ->  return (PostgresInfo pid conninfo "", OK ())
-    form_map :: Task (Map Backedge Entry) ---------------------------------
-             -> IO (Info Postgres, Status (Map Backedge Entry))
+    form_map :: Task [Entry] -> IO (Info Postgres, Status [Entry])
     form_map task            =  do
       res                   <-  execTask PG.Text
       case res of
@@ -155,7 +146,7 @@ instance Backend Postgres where
         Right result        ->  do
           (errors, okay)    <-  partitionEithers <$> PG.fromResult result
           let msg            =  unlines errors
-          return (((PostgresInfo pid conninfo msg,) . OK . buildMap) okay)
+          return (((PostgresInfo pid conninfo msg,) . OK) okay)
 
 
 pgSetupCommands             ::  ByteString
@@ -269,12 +260,6 @@ envelope io                  =  do
   (msg, val)                <-  io
   stop                      <-  getCurrentTime
   return $ Envelope start stop msg val
-
-
-buildMap                    ::  [Entry] -> Map Backedge Entry
-buildMap                     =  List.foldl' insert' mempty
- where
-  insert' map e@Entry{..}    =  Map.insert (Backedge (parent, uuid)) e map
 
 
 secondM                     ::  (b -> IO c) -> (a, b) -> IO (a, c)
