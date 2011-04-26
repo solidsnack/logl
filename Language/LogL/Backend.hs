@@ -13,21 +13,15 @@ module Language.LogL.Backend where
 
 import Prelude hiding (unlines)
 import Control.Applicative
-import Control.Arrow
 import Control.Concurrent
-import Control.Exception
 import Control.Monad
 import Data.ByteString.Char8 hiding (zip)
 import Data.Digest.Murmur64
-import Data.UUID
 import Data.Either
 import qualified Data.List as List
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Monoid
 import Data.Time.Clock
 import Data.Word
-import System.IO.Error
 import System.Posix.Types (CPid)
 
 import qualified Database.PQ as PG
@@ -110,7 +104,7 @@ instance Backend Postgres where
     guarded <- PG.guard "Connection setup." =<< PG.exec conn pgSetupCommands
     case guarded of
       Left b                ->  error (unpack b)
-      Right result          ->  do pid <- PG.backendPID conn
+      Right _               ->  do pid <- PG.backendPID conn
                                    Postgres conninfo conn pid <$> newMVar ()
   stop Postgres{..}          =  PG.finish conn >> takeMVar lock
   run Postgres{..} task      =  (envelope . withMVar' lock) (dispatch task)
@@ -137,12 +131,12 @@ instance Backend Postgres where
      where
       msg                    =  maybe "" id <$> PG.errorMessage conn
     stat_only               ::  Task () -> IO (Info Postgres, Status ())
-    stat_only task           =  do
+    stat_only _              =  do
       res                   <-  execTask PG.Text
       case res of Left err  ->  return (PostgresInfo pid conninfo err, ERROR)
                   Right _   ->  return (PostgresInfo pid conninfo "", OK ())
     form_map :: Task [Entry] -> IO (Info Postgres, Status [Entry])
-    form_map task            =  do
+    form_map _               =  do
       res                   <-  execTask PG.Text
       case res of
         Left err            ->  return (PostgresInfo pid conninfo err, ERROR)

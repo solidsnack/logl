@@ -13,7 +13,6 @@ import Data.Time.Format
 import Data.Word
 import System.Locale (defaultTimeLocale)
 
-import Data.Attoparsec (parseOnly)
 import Data.Attoparsec.Char8
 
 

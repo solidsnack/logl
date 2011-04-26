@@ -7,11 +7,7 @@ module Language.LogL.PG where
 
 import Prelude hiding (unwords, length, take, putStrLn)
 import Control.Applicative
-import Control.Concurrent
-import Control.Exception
-import Control.Monad.Error
 import Data.ByteString.Char8
-import Data.Either
 import Data.Monoid
 import Data.Word
 import System.IO (Handle)
@@ -181,7 +177,7 @@ instance PGPickle Entry where
   fromResult result          =  mapM fromTuple =<< unpackResult result
    where
     fromTuple tuple          =  case tuple of
-      [ Just uuid, Just log, Just parent, Just timestamp,
+      [ Just log, Just parent, Just uuid, Just timestamp,
         Just client_time, Just tag, Just bytes           ] -> do
         tag'                <-  unescapeBytea tag
         bytes'              <-  unescapeBytea bytes
@@ -227,26 +223,26 @@ renderResult handle result   =  Database.PQ.print handle result defaultPrintOpt
     the hood, it uses the async interface, with polling handled in Haskell so
     that the running thread can be killed.
  -}
-execParamsInterruptible
- :: Connection -> ByteString -> [Maybe (Oid, ByteString, Format)] -> Format
- -> IO ExecResult
-execParamsInterruptible conn text params otype = do
-  error "This code does not work."
-  unlessM (sendQueryParams conn text params otype) (return FailedSend) poll
- where
-  poll                       =  do
---  unlessM (consumeInput conn)
---          (return FailedPolling)
---          -- TODO -- Extract socket from connection and use select.
---          (unlessM (isBusy conn)
---                   (maybe FailedResult Received <$> getResult conn)
---                   (threadDelay 10000 >> poll)                     )
-    unlessM (putStrLn "Consume." >> consumeInput conn)
-            (putStrLn "Bad poll." >> return FailedPolling)
-            -- TODO -- Extract socket from connection and use select.
-            (unlessM (putStrLn "isBusy" >> isBusy conn)
-                     (putStrLn "getResult" >> maybe FailedResult Received <$> getResult conn)
-                     (putStrLn "poll" >> threadDelay 10000 >> poll)                     )
+-- execParamsInterruptible
+--  :: Connection -> ByteString -> [Maybe (Oid, ByteString, Format)] -> Format
+--  -> IO ExecResult
+-- execParamsInterruptible conn text params otype = do
+--   error "This code does not work."
+--   unlessM (sendQueryParams conn text params otype) (return FailedSend) poll
+--  where
+--   poll                       =  do
+-- --  unlessM (consumeInput conn)
+-- --          (return FailedPolling)
+-- --          -- TODO -- Extract socket from connection and use select.
+-- --          (unlessM (isBusy conn)
+-- --                   (maybe FailedResult Received <$> getResult conn)
+-- --                   (threadDelay 10000 >> poll)                     )
+--     unlessM (putStrLn "Consume." >> consumeInput conn)
+--             (putStrLn "Bad poll." >> return FailedPolling)
+--             -- TODO -- Extract socket from connection and use select.
+--             (unlessM (putStrLn "isBusy" >> isBusy conn)
+--                      (putStrLn "getResult" >> maybe FailedResult Received <$> getResult conn)
+--                      (putStrLn "poll" >> threadDelay 10000 >> poll)                     )
 
 
 data ExecResult              =  FailedSend

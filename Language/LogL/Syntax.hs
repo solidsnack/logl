@@ -9,7 +9,6 @@ import Data.String
 import Data.Time.Clock
 import Data.Time.Format()
 import Data.Tree
-import Data.Vector
 
 import Language.LogL.Tag (Tag)
 import Language.LogL.UUID
