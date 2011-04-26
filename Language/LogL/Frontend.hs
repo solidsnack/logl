@@ -6,6 +6,7 @@ module Language.LogL.Frontend where
 import Control.Applicative
 import Data.ByteString.Char8
 import Data.Maybe
+import Data.Monoid
 import Data.String
 import Data.Time.Clock
 import Data.Time.Format()
@@ -25,26 +26,27 @@ data Frontend b where
 
 --  Remember, "pattern matching causes type refinement". Remember what that
 --  actually means.
-interpret                   ::  (Backend b) => Frontend b -> LogL t -> IO t 
+interpret :: (Backend b) => Frontend b -> LogL t -> IO (Status t)
 interpret Frontend{..} logl  =  case logl of
   Alloc (client_time, tag)  ->  do
     uuid                    <-  ID <$> v1
     timestamp               <-  getCurrentTime
     let log                  =  Log uuid timestamp client_time tag
-    Envelope t_ t' info st  <-  run backend (WriteLog log)
-    undefined
+    runGuarded (WriteLog log) (const uuid)
   Append logID parentID msg ->  do
-    let Message client_time tag bytes = msg
     uuid                    <-  ID <$> v1
     timestamp               <-  getCurrentTime
-    let entry                =  Entry  uuid  logID        parentID  timestamp
+    let Message client_time tag bytes = msg
+        entry                =  Entry  uuid  logID        parentID  timestamp
                                              client_time  tag       bytes
-    Envelope t_ t' info st  <-  run backend (WriteEntry entry)
-    undefined
-  Free logID                ->  do
-    Envelope t_ t' info st  <-  run backend (WriteTombstone logID)
-    undefined
-  Subtree logID entryID     ->  do
-    Envelope t_ t' info st  <-  run backend (RetrieveSubtree logID entryID)
-    undefined
+    runGuarded (WriteEntry entry) (const uuid)
+  Free logID                ->  runGuarded (WriteTombstone logID) (const ())
+  Forest logID entryID      ->  do
+    runGuarded (RetrieveForest logID entryID) (const [])
+ where
+  runGuarded :: (Monoid t) => Task t -> (t -> t') -> IO (Status t')
+  runGuarded task transform  =  do
+    Envelope _ _ _ status   <-  run backend task
+    case status of OK t     ->  return . OK . transform $ t
+                   ERROR    ->  return ERROR
 

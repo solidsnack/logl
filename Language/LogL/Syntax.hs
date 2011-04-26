@@ -20,7 +20,7 @@ data LogL t where
   Alloc             ::  (UTCTime, Tag) -> LogL (ID Log)
   Append            ::  ID Log -> ID Entry -> Message -> LogL (ID Entry)
   Free              ::  ID Log -> LogL ()
-  Subtree           ::  ID Log -> ID Entry -> LogL (Maybe (Tree Entry))
+  Forest            ::  ID Log -> ID Entry -> LogL [Tree Entry]
 --Chain         ::  ID Log -> ID Entry -> ID Entry -> LogL (Vector Entry)
 
 data Log                     =  Log !(ID Log) !UTCTime !UTCTime !Tag
