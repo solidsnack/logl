@@ -77,6 +77,9 @@ instance (Monoid t) => Monoid (Status t) where
   mappend (OK a) (OK b)      =  OK (mappend a b)
   mappend ERROR other        =  other
   mappend other ERROR        =  other
+instance Functor Status where
+  fmap _ ERROR               =  ERROR
+  fmap f (OK t)              =  OK (f t)
 
 ok                          ::  Status t -> Bool
 ok ERROR                     =  False

@@ -32,21 +32,24 @@ interpret Frontend{..} logl  =  case logl of
     uuid                    <-  ID <$> v1
     timestamp               <-  getCurrentTime
     let log                  =  Log uuid timestamp client_time tag
-    runGuarded (WriteLog log) (const uuid)
+    WriteLog log `pipe` const uuid
   Append logID parentID msg ->  do
     uuid                    <-  ID <$> v1
     timestamp               <-  getCurrentTime
     let Message client_time tag bytes = msg
         entry                =  Entry  uuid  logID        parentID  timestamp
                                              client_time  tag       bytes
-    runGuarded (WriteEntry entry) (const uuid)
-  Free logID                ->  runGuarded (WriteTombstone logID) (const ())
-  Forest logID entryID      ->  do
-    runGuarded (RetrieveForest logID entryID) (const [])
+    WriteEntry entry `pipe` const uuid
+  Free logID                ->  WriteTombstone logID `pipe` const ()
+  Forest logID entryID      ->  RetrieveForest logID entryID `pipe` forests
  where
-  runGuarded :: (Monoid t) => Task t -> (t -> t') -> IO (Status t')
-  runGuarded task transform  =  do
+  run'                      ::  (Monoid t) => Task t -> IO (Status t)
+  run' task                  =  do
     Envelope _ _ _ status   <-  run backend task
-    case status of OK t     ->  return . OK . transform $ t
-                   ERROR    ->  return ERROR
+    return status
+  pipe task f               =  (f <$>) <$> run' task
+
+
+forests                     ::  [Entry] -> [Tree Entry]
+forests                      =  const []
 
