@@ -133,11 +133,6 @@ BEGIN
     RAISE 'No such log %.', $1;
   END IF;
   LOOP
-    IF roots = ARRAY[]::uuid[] THEN
-      EXIT;
-    END IF;
-    RETURN QUERY SELECT * FROM logl.entry_with_pointers
-                         WHERE uuid IN (SELECT * FROM unnest(roots));
     next_roots := ARRAY[]::uuid[];
     FOR root IN (SELECT * FROM unnest(roots)) LOOP
       SELECT ARRAY( SELECT child FROM logl.parent_to_children
@@ -146,6 +141,11 @@ BEGIN
       next_roots := next_roots || leaves;
     END LOOP;
     roots := next_roots;
+    IF roots = ARRAY[]::uuid[] THEN
+      EXIT;
+    END IF;
+    RETURN QUERY SELECT * FROM logl.entry_with_pointers
+                         WHERE uuid IN (SELECT * FROM unnest(roots));
   END LOOP;
 END;
 $$ LANGUAGE plpgsql STRICT;
