@@ -4,18 +4,13 @@
 module Language.LogL.Frontend where
 
 import Control.Applicative
-import Data.ByteString.Char8
-import Data.Maybe
+import qualified Data.Graph as Graph
 import Data.Monoid
-import Data.String
 import Data.Time.Clock
 import Data.Time.Format()
 import Data.Tree
-import Data.Vector
 
-import Language.LogL.Tag (Tag)
 import Language.LogL.UUID
-import Language.LogL.Pickle
 import Language.LogL.Syntax
 import Language.LogL.Backend
 
@@ -41,15 +36,23 @@ interpret Frontend{..} logl  =  case logl of
                                              client_time  tag       bytes
     WriteEntry entry `pipe` const uuid
   Free logID                ->  WriteTombstone logID `pipe` const ()
-  Forest logID entryID      ->  RetrieveForest logID entryID `pipe` forests
+  Forest logID entryID      ->  RetrieveForest logID entryID `pipe` forest
  where
   run'                      ::  (Monoid t) => Task t -> IO (Status t)
   run' task                  =  do
     Envelope _ _ _ status   <-  run backend task
     return status
-  pipe task f               =  (f <$>) <$> run' task
+  pipe task f                =  (f <$>) <$> run' task
 
 
-forests                     ::  [Entry] -> [Tree Entry]
-forests                      =  const []
+forest                      ::  [Entry] -> [Tree Entry]
+forest entries               =  (_1of3 . lookup <$>) <$> forest
+ where
+  (graph, lookup, _)         =  Graph.graphFromEdges (adjacency <$> entries)
+  forest                     =  Graph.dff (Graph.transposeG graph)
+  _1of3 (x, _, _)            =  x
+
+
+adjacency                   ::  Entry -> (Entry, ID Entry, [ID Entry])
+adjacency entry@Entry{..}    =  (entry, uuid, [parent])
 
