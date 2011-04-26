@@ -47,7 +47,7 @@ data Task t where
   WriteLog                  ::  Log -> Task ()
   WriteEntry                ::  Entry -> Task ()
   WriteTombstone            ::  ID Log -> Task ()
-  RetrieveSubtree           ::  ID Log -> ID Entry -> Task (Map Backedge Entry)
+  RetrieveForest            ::  ID Log -> ID Entry -> Task (Map Backedge Entry)
 
 class Backend backend where
   type Info backend         ::  *
@@ -60,7 +60,7 @@ taskName                    ::  Task t -> ByteString
 taskName (WriteLog _)        =  "WriteLog"
 taskName (WriteEntry _)      =  "WriteEntry"
 taskName (WriteTombstone _)  =  "WriteTombstone"
-taskName (RetrieveSubtree _ _) = "RetrieveSubtree"
+taskName (RetrieveForest _ _) = "RetrieveSubtree"
 
 data Envelope b t where
   Envelope :: (Backend b) ---------------------------------------------
@@ -125,7 +125,7 @@ instance Backend Postgres where
       WriteLog _            ->  stat_only task
       WriteEntry _          ->  stat_only task
       WriteTombstone _      ->  stat_only task
-      RetrieveSubtree _ _   ->  form_map task
+      RetrieveForest _ _    ->  form_map task
     (text, params)           =  paramsForPGExec task
     execTask otype           =  do
       res                   <-  PG.execParams conn text params otype
@@ -168,7 +168,7 @@ paramsForPGExec task         =  case task of
   WriteEntry entry          ->  (PG.call "logl.write_entry" 7, PG.pqARGV entry)
   WriteTombstone idL        ->  ( PG.call "logl.write_tombstone" 1,
                                   [Just (0, Pickle.o idL, PG.Text)] )
-  RetrieveSubtree idL idE   ->  ( PG.call "logl.retrieve_subtree" 2,
+  RetrieveForest idL idE    ->  ( PG.call "logl.retrieve_subtree" 2,
                                   [ Just (0, Pickle.o idL, PG.Text),
                                     Just (0, Pickle.o idE, PG.Text) ] )
 
@@ -220,7 +220,7 @@ shardTask task               =  shardLog $ case task of
   WriteLog (Log uuid _ _ _) ->  uuid
   WriteEntry Entry{..}      ->  log
   WriteTombstone log        ->  log
-  RetrieveSubtree log _     ->  log
+  RetrieveForest log _      ->  log
 
 shardLog                    ::  ID Log -> Word64
 shardLog (ID uuid)           =  (asWord64 . hash64) uuid
