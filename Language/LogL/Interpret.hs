@@ -1,4 +1,4 @@
-module Language.LogL.Frontend where
+module Language.LogL.Interpret where
 
 import Control.Applicative
 import qualified Data.Graph as Graph
