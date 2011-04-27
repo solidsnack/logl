@@ -1,6 +1,3 @@
-{-# LANGUAGE GADTs
-           , RecordWildCards
-  #-}
 module Language.LogL.Frontend where
 
 import Control.Applicative
@@ -15,14 +12,10 @@ import Language.LogL.Syntax
 import Language.LogL.Backend
 
 
-data Frontend b where
-  Frontend :: (Backend b) => {backend :: b} -> Frontend b
-
-
---  Remember, "pattern matching causes type refinement". Remember what that
---  actually means.
-interpret :: (Backend b) => Frontend b -> LogL t -> IO (Status t)
-interpret Frontend{..} logl  =  case logl of
+{-| Interpret a LogL request with the aid of a backend.
+ -}
+interpret                   ::  (Backend b) => b -> LogL t -> IO (Status t)
+interpret backend logl       =  case logl of
   Alloc (client_time, tag)  ->  do
     uuid                    <-  ID <$> v1
     timestamp               <-  getCurrentTime
@@ -45,6 +38,8 @@ interpret Frontend{..} logl  =  case logl of
   pipe task f                =  (f <$>) <$> run' task
 
 
+{-| Use the backedges in the entries to build up history trees.
+ -}
 forest                      ::  [Entry] -> [Tree Entry]
 forest entries               =  (_1of3 . lookup <$>) <$> forest
  where
@@ -53,6 +48,8 @@ forest entries               =  (_1of3 . lookup <$>) <$> forest
   _1of3 (x, _, _)            =  x
 
 
+{-| Convenience function to convert an 'Entry' into a graph element.
+ -}
 adjacency                   ::  Entry -> (Entry, ID Entry, [ID Entry])
 adjacency entry@Entry{..}    =  (entry, uuid, [parent])
 
