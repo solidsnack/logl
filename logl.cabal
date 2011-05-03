@@ -33,6 +33,9 @@ library
                               , murmur-hash
                               , template-haskell
                               , system-uuid >= 2.1.0
+                              , wai
+                              , wai-extra
+                              , warp
   exposed-modules             : ...
   extensions                  : DisambiguateRecordFields
                               , GADTs
