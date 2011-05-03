@@ -16,13 +16,14 @@ import System.Locale
 
 import Data.Enumerator hiding (head)
 import qualified Network.HTTP.Types as Web
+import Network.Wai (Request(..))
 import qualified Network.Wai as Web
 import qualified Network.Wai.Handler.Warp as Web
 import qualified Blaze.ByteString.Builder as Blaze
 
 
 wai                         ::  Web.Application
-wai Web.Request{..}          =  methodCheck
+wai Request{..}              =  methodCheck
  where
   methodCheck                =  case (Web.parseMethod requestMethod) of
     Right Web.GET           ->  if pathInfo /= [] then badPath
@@ -60,7 +61,7 @@ response status headers builder = do
 blaze                        =  Blaze.fromByteString
 
 
-contentHTML                  =  ("Content-Type", "text/html; charset=utf-8")
+contentHTML                  =  ("Content-Type", "text/html;charset=UTF-8")
 contentYAML                  =  ("Content-Type", "text/yaml")
 
 date                         =  ("Date",) . pack <$> httpCurrentDate
