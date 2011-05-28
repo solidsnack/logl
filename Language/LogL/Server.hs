@@ -62,7 +62,7 @@ blaze                        =  Blaze.fromByteString
 
 
 contentHTML                  =  ("Content-Type", "text/html;charset=UTF-8")
-contentYAML                  =  ("Content-Type", "text/yaml")
+contentYAML                  =  ("Content-Type", "application/yaml")
 
 date                         =  ("Date",) . pack <$> httpCurrentDate
 
