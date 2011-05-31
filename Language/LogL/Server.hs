@@ -16,7 +16,7 @@ import System.Locale
 
 import qualified Blaze.ByteString.Builder as Blaze
 import Data.Enumerator hiding (head)
-import qualified Data.Yaml.YamlLight as YAML
+import qualified Data.Object.Yaml as YAML
 import qualified Network.HTTP.Types as Web
 import Network.Wai (Request(..))
 import qualified Network.Wai as Web
@@ -27,8 +27,8 @@ wai                         ::  Web.Application
 wai Request{..}              =  methodCheck
  where
   methodCheck                =  case (Web.parseMethod requestMethod) of
-    Right Web.GET           ->  if pathInfo /= [] then badPath
-                                                  else get
+--  Right Web.GET           ->  if pathInfo /= [] then badPath
+--                                                else get
     Right Web.POST          ->  if pathInfo /= [] then badPath
                                                   else post
     Right Web.HEAD          ->  if pathInfo /= [] then badPath
