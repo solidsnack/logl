@@ -38,8 +38,8 @@ import qualified Language.LogL.PG as PG
     come from the interpreter layer, which manages the IDs.
  -}
 data Task t where
-  WriteLog                  ::  Log -> Task ()
-  WriteEntry                ::  Entry -> Task ()
+  WriteLog                  ::  Log -> Task (ID Log)
+  WriteEntry                ::  Entry -> Task (ID Entry)
   WriteTombstone            ::  ID Log -> Task ()
   RetrieveForest            ::  ID Log -> ID Entry -> Task [Entry]
 class Backend backend where
@@ -111,9 +111,9 @@ instance Backend Postgres where
    where
     dispatch                ::  Task t -> IO (Info Postgres, Status t)
     dispatch task            =  case task of
-      WriteLog _            ->  stat_only task
-      WriteEntry _          ->  stat_only task
-      WriteTombstone _      ->  stat_only task
+      WriteLog log          ->  stat uuid where Log uuid _ _ _ = log
+      WriteEntry Entry{..}  ->  stat uuid
+      WriteTombstone _      ->  stat ()
       RetrieveForest _ _    ->  form_map task
     (text, params)           =  paramsForPGExec task
     execTask otype           =  do
@@ -130,11 +130,11 @@ instance Backend Postgres where
 --      PG.Received res     ->  Right <$> return res
      where
       msg                    =  maybe "" id <$> PG.errorMessage conn
-    stat_only               ::  Task () -> IO (Info Postgres, Status ())
-    stat_only _              =  do
+    stat                    ::  t -> IO (Info Postgres, Status t)
+    stat t                   =  do
       res                   <-  execTask PG.Text
       case res of Left err  ->  return (PostgresInfo pid conninfo err, ERROR)
-                  Right _   ->  return (PostgresInfo pid conninfo "", OK ())
+                  Right _   ->  return (PostgresInfo pid conninfo "", OK t)
     form_map :: Task [Entry] -> IO (Info Postgres, Status [Entry])
     form_map _               =  do
       res                   <-  execTask PG.Text
