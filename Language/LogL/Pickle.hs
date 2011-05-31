@@ -16,6 +16,8 @@ import System.Locale (defaultTimeLocale)
 import Data.Attoparsec.Char8
 
 
+-- Really wish I had just used convertible text.
+
 class Pickle t where
   i                         ::  ByteString -> Maybe t
   o                         ::  t -> ByteString
