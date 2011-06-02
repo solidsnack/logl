@@ -1,0 +1,52 @@
+
+<request>        =  <alloc>  |  <free>  |  <append>  |  <forest>
+
+<response>       =  alloc: <allocated>   |  free: <freed>
+                 |  append: <appended>*  |  forest: <entry>*
+
+
+<alloc>          =  alloc:
+                      <time>
+                      <tag>
+
+<free>           =  free: <uuid>
+
+<append>         =  append:
+                      log: <uuid>
+                      below: <uuid>
+                      <messages>
+
+<forest>         =  forest:
+                      log: <uuid>
+                      below: <uuid>
+
+
+<allocated>      =  <uuid>  |  error: <description>
+
+<freed>          =  'ok'  |  error: <description>
+
+<appended>       =  <uuid>: <appended>*  |  error: <description>
+
+
+<message>        =  <time>
+                    <tag>
+                    bytes: <byte>*
+                    <messages>?
+
+<messages>       =  messages: <message>*
+
+
+<tag>            =  tag: <tag>{0,128}
+
+<time>           =  time: <RFC 3339 timestamp>
+
+
+<entry>          =  uuid: <uuid>
+                    received: <RFC 3339 timestamp>
+                    <tag>
+                    <time>
+                    bytes: <byte>*
+                    <entries>
+
+<entries>        =  entries: <entry>*
+
