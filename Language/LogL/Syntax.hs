@@ -16,7 +16,7 @@ import Language.LogL.Pickle
 
 
 data LogL t where
-  Alloc             ::  (UTCTime, Tag) -> LogL (ID Log)
+  Alloc             ::  UTCTime -> Tag -> LogL (ID Log)
   Append            ::  ID Log -> ID Entry -> Message -> LogL (ID Entry)
   Free              ::  ID Log -> LogL ()
   Forest            ::  ID Log -> ID Entry -> LogL [Tree Entry]

@@ -17,10 +17,20 @@ import Language.LogL.Syntax
 
 
 --data LogL t where
---  Alloc             ::  (UTCTime, Tag) -> LogL (ID Log)
+--  Alloc             ::  UTCTime -> Tag -> LogL (ID Log)
 --  Append            ::  ID Log -> ID Entry -> Message -> LogL (ID Entry)
 --  Free              ::  ID Log -> LogL ()
 --  Forest            ::  ID Log -> ID Entry -> LogL [Tree Entry]
+
+
+alloc :: (Failure ObjectExtractError m, Functor m) -------------------
+      => YamlObject -> m (Maybe (LogL (ID Log)))
+alloc yaml                   =  do
+  m                         <-  fromMapping yaml
+  m'                        <-  lookupMapping "alloc" m
+  time                      <-  lookupScalar "time" m'
+  tag                       <-  lookupScalar "tag" m'
+  return (Alloc <$> Pickle.i time <*> Pickle.i tag)
 
 
 lookupMapping :: (Failure ObjectExtractError m, Functor m) -------------------

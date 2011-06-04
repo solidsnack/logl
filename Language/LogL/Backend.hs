@@ -47,7 +47,8 @@ class Backend backend where
   type Spec backend         ::  *
   start                     ::  Spec backend -> IO backend
   stop                      ::  backend -> IO ()
-  run :: (Monoid t) => backend -> Task t -> IO (Envelope backend t)
+  run :: (Monoid (Status t)) => backend -> Task t -> IO (Envelope backend t)
+--run :: backend -> Task t -> IO (Envelope backend t)
 
 taskName                    ::  Task t -> ByteString
 taskName (WriteLog _)        =  "WriteLog"
@@ -66,14 +67,34 @@ deriving instance (Show t, Show (Info b)) => Show (Envelope b t)
 data Status t                =  OK !t | ERROR
 deriving instance (Eq t) => Eq (Status t)
 deriving instance (Show t) => Show (Status t)
-instance (Monoid t) => Monoid (Status t) where
+--  WriteLog                  ::  Log -> Task (ID Log)
+--  WriteEntry                ::  Entry -> Task (ID Entry)
+--  WriteTombstone            ::  ID Log -> Task ()
+--  RetrieveForest            ::  ID Log -> ID Entry -> Task [Entry]
+instance Monoid (Status ()) where
   mempty                     =  ERROR
-  mappend (OK a) (OK b)      =  OK (mappend a b)
-  mappend ERROR other        =  other
-  mappend other ERROR        =  other
+  mappend                    =  left_selection_merge
+instance Monoid (Status [Entry]) where
+  mempty                     =  ERROR
+  mappend                    =  monoidal_merge
+instance Monoid (Status (ID Log)) where
+  mempty                     =  ERROR
+  mappend                    =  left_selection_merge
+instance Monoid (Status (ID Entry)) where
+  mempty                     =  ERROR
+  mappend                    =  left_selection_merge
 instance Functor Status where
   fmap _ ERROR               =  ERROR
   fmap f (OK t)              =  OK (f t)
+
+monoidal_merge              ::  (Monoid t) => Status t -> Status t -> Status t
+monoidal_merge (OK a) (OK b) =  OK (mappend a b)
+monoidal_merge ERROR other   =  other
+monoidal_merge other ERROR   =  other
+
+left_selection_merge        ::  Status t -> Status t -> Status t
+left_selection_merge (OK a) _    = OK a
+left_selection_merge ERROR other = other
 
 ok                          ::  Status t -> Bool
 ok ERROR                     =  False

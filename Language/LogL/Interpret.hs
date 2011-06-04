@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards
+  #-}
 module Language.LogL.Interpret where
 
 import Control.Applicative
@@ -16,7 +18,7 @@ import Language.LogL.Backend
  -}
 interpret                   ::  (Backend b) => b -> LogL t -> IO (Status t)
 interpret backend logl       =  case logl of
-  Alloc (client_time, tag)  ->  do
+  Alloc client_time tag     ->  do
     uuid                    <-  ID <$> v1
     timestamp               <-  getCurrentTime
     let log                  =  Log uuid timestamp client_time tag
@@ -31,7 +33,7 @@ interpret backend logl       =  case logl of
   Free logID                ->  WriteTombstone logID `pipe` const ()
   Forest logID entryID      ->  RetrieveForest logID entryID `pipe` forest
  where
-  run'                      ::  (Monoid t) => Task t -> IO (Status t)
+  --run'                      ::  (Monoid t) => Task t -> IO (Status t)
   run' task                  =  do
     Envelope _ _ _ status   <-  run backend task
     return status
