@@ -48,7 +48,6 @@ class Backend backend where
   start                     ::  Spec backend -> IO backend
   stop                      ::  backend -> IO ()
   run :: (Monoid (Status t)) => backend -> Task t -> IO (Envelope backend t)
---run :: backend -> Task t -> IO (Envelope backend t)
 
 taskName                    ::  Task t -> ByteString
 taskName (WriteLog _)        =  "WriteLog"

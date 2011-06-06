@@ -20,7 +20,6 @@ data LogL t where
   Append :: ID Log -> ID Entry -> [Tree Message] -> LogL ([Tree (ID Entry)])
   Free              ::  ID Log -> LogL ()
   Forest            ::  ID Log -> ID Entry -> LogL [Tree Entry]
---Chain         ::  ID Log -> ID Entry -> ID Entry -> LogL (Vector Entry)
 
 data Log                     =  Log !(ID Log) !UTCTime !UTCTime !Tag
 deriving instance Eq Log

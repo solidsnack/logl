@@ -17,12 +17,6 @@ import qualified Language.LogL.Pickle as Pickle
 import Language.LogL.Syntax
 
 
---data LogL t where
---  Alloc             ::  UTCTime -> Tag -> LogL (ID Log)
---  Append            ::  ID Log -> ID Entry -> Message -> LogL (ID Entry)
---  Free              ::  ID Log -> LogL ()
---  Forest            ::  ID Log -> ID Entry -> LogL [Tree Entry]
-
 alloc :: (Applicative m, Failure ObjectExtractError m, Functor m) -----
       => [(YamlScalar, YamlObject)] -> m (Maybe (LogL (ID Log)))
 alloc m                      =  do
