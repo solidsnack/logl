@@ -28,15 +28,15 @@ library
   else
     build-depends             : base < 4
   build-depends               : containers
-                              , attoparse >= 0.8.5
                               , bytestring >= 0.9
+                              , data-object-yaml
                               , murmur-hash
                               , template-haskell
                               , system-uuid >= 2.1.0
                               , wai
                               , wai-extra
                               , warp
-  exposed-modules             : ...
+  exposed-modules             : 
   extensions                  : DisambiguateRecordFields
                               , GADTs
                               , OverloadedStrings
