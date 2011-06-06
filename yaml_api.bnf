@@ -1,5 +1,6 @@
 
-<request>        =  <alloc>  |  <free>  |  <append>  |  <forest>
+<request>        =  version: <protocol version>
+                    <alloc>  |  <free>  |  <append>  |  <forest>
 
 <response>       =  alloc: <allocated>   |  free: <freed>
                  |  append: <appended>*  |  forest: <entry>*
@@ -49,4 +50,7 @@
                     <entries>
 
 <entries>        =  entries: <entry>*
+
+
+<protocol version> = 2011-06-02
 

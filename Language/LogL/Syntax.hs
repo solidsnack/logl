@@ -17,7 +17,7 @@ import Language.LogL.Pickle
 
 data LogL t where
   Alloc             ::  UTCTime -> Tag -> LogL (ID Log)
-  Append            ::  ID Log -> ID Entry -> Message -> LogL (ID Entry)
+  Append :: ID Log -> ID Entry -> [Tree Message] -> LogL ([Tree (ID Entry)])
   Free              ::  ID Log -> LogL ()
   Forest            ::  ID Log -> ID Entry -> LogL [Tree Entry]
 --Chain         ::  ID Log -> ID Entry -> ID Entry -> LogL (Vector Entry)
@@ -52,6 +52,4 @@ data Message                 =  Message !UTCTime !Tag !ByteString
 deriving instance Eq Message
 deriving instance Ord Message
 deriving instance Show Message
-
-
 
