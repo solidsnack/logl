@@ -27,7 +27,8 @@ alloc m                      =  do
 
 append :: ( Alternative m, Applicative m
           , Failure ObjectExtractError m, Functor m )
-       => [(YamlScalar, YamlObject)] -> m (Maybe (LogL [Tree (ID Entry)]))
+       => [(YamlScalar, YamlObject)]
+       -> m (Maybe (LogL [Tree (Maybe (ID Entry))]))
 append m                     =  do
   m'                        <-  lookupMapping "append" m
   log                       <-  lookupScalar "log" m'
