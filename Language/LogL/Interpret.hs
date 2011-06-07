@@ -22,21 +22,32 @@ interpret backend logl       =  case logl of
     timestamp               <-  getCurrentTime
     let log                  =  Log uuid timestamp client_time tag
     WriteLog log `pipe` const uuid
-  Append logID parentID msg ->  do
-    uuid                    <-  ID <$> v1
-    timestamp               <-  getCurrentTime
-    let Message client_time tag bytes = msg
-        entry                =  Entry  uuid  logID        parentID  timestamp
-                                             client_time  tag       bytes
-    WriteEntry entry `pipe` const uuid
+  Append logID parentID ms  ->  do
+      trees                 <-  mapM (appendTree logID parentID) ms
+      return $ if any (== ERROR) trees then ERROR
+                                       else OK (statusListToList trees)
   Free logID                ->  WriteTombstone logID `pipe` const ()
   Forest logID entryID      ->  RetrieveForest logID entryID `pipe` forest
  where
-  --run'                      ::  (Monoid t) => Task t -> IO (Status t)
   run' task                  =  do
     Envelope _ _ _ status   <-  run backend task
     return status
   pipe task f                =  (f <$>) <$> run' task
+  appendTree logID parentID Node{..} = do
+    uuid                    <-  ID <$> v1
+    timestamp               <-  getCurrentTime
+    let Message client_time tag bytes = rootLabel
+        entry                =  Entry  uuid  logID        parentID  timestamp
+                                           client_time  tag       bytes
+    stat                    <-  WriteEntry entry `pipe` const uuid
+    case stat of
+      OK _                  ->  do
+        trees               <-  mapM (appendTree logID uuid) subForest
+        return $ if any (== ERROR) trees
+                   then  ERROR
+                   else  OK Node{ rootLabel=uuid,
+                                  subForest=(statusListToList trees) }
+      ERROR                 ->  return ERROR
 
 
 {-| Use the backedges in the entries to build up history trees.

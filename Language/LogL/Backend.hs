@@ -95,6 +95,11 @@ ok                          ::  Status t -> Bool
 ok ERROR                     =  False
 ok (OK _)                    =  True
 
+statusListToList            ::  [Status t] -> [t]
+statusListToList (OK t  : r) =  t : statusListToList r
+statusListToList (ERROR : r) =  statusListToList r
+statusListToList []          =  []
+
 
 data Postgres                =  Postgres { conninfo :: PG.Conninfo,
                                            conn     :: PG.Connection,
