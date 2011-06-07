@@ -25,8 +25,8 @@ alloc m                      =  do
   tag                       <-  lookupScalar "tag" m'
   pure (Alloc <$> Pickle.i time <*> Pickle.i tag)
 
-append :: ( Alternative m, Applicative m
-          , Failure ObjectExtractError m, Functor m )
+append :: ( Alternative m, Applicative m,
+            Failure ObjectExtractError m, Functor m )
        => [(YamlScalar, YamlObject)] -> m (Maybe (LogL [Tree (ID Entry)]))
 append m                     =  do
   m'                        <-  lookupMapping "append" m
@@ -50,8 +50,8 @@ forest m                     =  do
   pure (Forest <$> Pickle.i log <*> Pickle.i parent)
 
 
-message :: ( Alternative m, Applicative m
-           , Failure ObjectExtractError m, Functor m )
+message :: ( Alternative m, Applicative m,
+             Failure ObjectExtractError m, Functor m )
         => [(YamlScalar, YamlObject)] -> m (Maybe (Tree Message))
 message m                    =  do
   tag                       <-  lookupScalar "tag" m
@@ -62,8 +62,8 @@ message m                    =  do
     message <- Message <$> Pickle.i tag <*> Pickle.i time <*> Pickle.i bytes
     Node message <$> messages
 
-messages :: ( Alternative m, Applicative m
-            , Failure ObjectExtractError m, Functor m )
+messages :: ( Alternative m, Applicative m,
+              Failure ObjectExtractError m, Functor m )
          => [(YamlScalar, YamlObject)] -> m (Maybe [Tree Message])
 messages m                   =  do
   messages                  <-  lookupSequence "messages" m <|> pure []
@@ -89,7 +89,7 @@ lookupScalar b m             =  fromYamlScalar
                             <$> Data.Object.lookupScalar (toYamlScalar b) m
 
 lookupSequence :: (Failure ObjectExtractError m, Functor m) -------------------
-             => ByteString -> [(YamlScalar, YamlObject)]
-             -> m [YamlObject]
+               => ByteString -> [(YamlScalar, YamlObject)]
+               -> m [YamlObject]
 lookupSequence b             =  Data.Object.lookupSequence (toYamlScalar b)
 

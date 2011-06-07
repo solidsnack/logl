@@ -4,7 +4,6 @@ module Language.LogL.Interpret where
 
 import Control.Applicative
 import qualified Data.Graph as Graph
-import Data.Monoid
 import Data.Time.Clock
 import Data.Time.Format()
 import Data.Tree

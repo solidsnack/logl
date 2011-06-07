@@ -66,10 +66,6 @@ deriving instance (Show t, Show (Info b)) => Show (Envelope b t)
 data Status t                =  OK !t | ERROR
 deriving instance (Eq t) => Eq (Status t)
 deriving instance (Show t) => Show (Status t)
---  WriteLog                  ::  Log -> Task (ID Log)
---  WriteEntry                ::  Entry -> Task (ID Entry)
---  WriteTombstone            ::  ID Log -> Task ()
---  RetrieveForest            ::  ID Log -> ID Entry -> Task [Entry]
 instance Monoid (Status ()) where
   mempty                     =  ERROR
   mappend                    =  left_selection_merge
