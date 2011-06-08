@@ -4,7 +4,7 @@ module Language.LogL.YAML where
 
 import Control.Applicative
 import Data.Tree
-import Data.ByteString
+import Data.ByteString hiding (append)
 
 import Control.Failure
 import Data.Object hiding ( lookupMapping, lookupObject
@@ -17,6 +17,17 @@ import qualified Language.LogL.Pickle as Pickle
 import Language.LogL.Syntax
 
 
+data Request where
+  Request                   ::  forall t. LogL t -> Request
+
+request :: ( Alternative m, Applicative m, ----------------------------------
+             Failure ObjectExtractError m, Functor m )
+        => [(YamlScalar, YamlObject)] -> m (Maybe Request)
+request m                    =  (Request <$>) <$> alloc m
+                            <|> (Request <$>) <$> append m
+                            <|> (Request <$>) <$> free m
+                            <|> (Request <$>) <$> forest m
+
 alloc :: (Applicative m, Failure ObjectExtractError m, Functor m) -----
       => [(YamlScalar, YamlObject)] -> m (Maybe (LogL (ID Log)))
 alloc m                      =  do
@@ -25,7 +36,7 @@ alloc m                      =  do
   tag                       <-  lookupScalar "tag" m'
   pure (Alloc <$> Pickle.i time <*> Pickle.i tag)
 
-append :: ( Alternative m, Applicative m,
+append :: ( Alternative m, Applicative m, -----------------------------------
             Failure ObjectExtractError m, Functor m )
        => [(YamlScalar, YamlObject)] -> m (Maybe (LogL [Tree (ID Entry)]))
 append m                     =  do
@@ -50,7 +61,7 @@ forest m                     =  do
   pure (Forest <$> Pickle.i log <*> Pickle.i parent)
 
 
-message :: ( Alternative m, Applicative m,
+message :: ( Alternative m, Applicative m, ----------------------------------
              Failure ObjectExtractError m, Functor m )
         => [(YamlScalar, YamlObject)] -> m (Maybe (Tree Message))
 message m                    =  do
@@ -62,7 +73,7 @@ message m                    =  do
     message <- Message <$> Pickle.i tag <*> Pickle.i time <*> Pickle.i bytes
     Node message <$> messages
 
-messages :: ( Alternative m, Applicative m,
+messages :: ( Alternative m, Applicative m, ---------------------------------
               Failure ObjectExtractError m, Functor m )
          => [(YamlScalar, YamlObject)] -> m (Maybe [Tree Message])
 messages m                   =  do
