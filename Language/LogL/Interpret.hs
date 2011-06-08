@@ -38,7 +38,7 @@ interpret backend logl       =  case logl of
     timestamp               <-  getCurrentTime
     let Message client_time tag bytes = rootLabel
         entry                =  Entry  uuid  logID        parentID  timestamp
-                                           client_time  tag       bytes
+                                             client_time  tag       bytes
     stat                    <-  WriteEntry entry `pipe` const uuid
     case stat of
       OK _                  ->  do
