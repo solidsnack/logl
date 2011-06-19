@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings
            , RecordWildCards
            , TupleSections
+           , TemplateHaskell
   #-}
 
 module Language.LogL.Server where
@@ -18,19 +19,23 @@ import qualified Blaze.ByteString.Builder as Blaze
 import Data.Enumerator hiding (head)
 import qualified Data.Object.Yaml as YAML
 import qualified Network.HTTP.Types as Web
-import Network.Wai (Request(..))
+--import Network.Wai (Request(..))
 import qualified Network.Wai as Web
 import qualified Network.Wai.Handler.Warp as Web
 
+import qualified Language.LogL.Macros as Macros
+import qualified Language.LogL.YAML as YAML
+
 
 wai                         ::  Web.Application
-wai Request{..}              =  methodCheck
+wai Web.Request{..}          =  methodCheck
  where
   methodCheck                =  case (Web.parseMethod requestMethod) of
---  Right Web.GET           ->  if pathInfo /= [] then badPath
---                                                else get
-    Right Web.POST          ->  if pathInfo /= [] then badPath
-                                                  else post
+    Right Web.GET           ->  if pathInfo /= [] then badPath
+                                                  else hello
+    Right Web.POST          ->  case pathInfo of
+      ["interpret"]         ->  post
+      _                     ->  badPath
     Right Web.HEAD          ->  if pathInfo /= [] then badPath
                                                   else head
     Right _                 ->  unhandledMethod
@@ -41,9 +46,9 @@ badPath                      =  http404 []
 unhandledMethod              =  http405 [("Allow", "POST, GET, HEAD")]
 unknownMethod                =  http400 []
 
-get                          =  http200 [contentHTML] ""
 post                         =  http200 [contentYAML] "good: POST\n"
 head                         =  http200 [contentHTML] ""
+hello = http200 [contentHTML] $(Macros.text "./html/hello.html")
 
 
 http400 headers              =  response Web.status400 headers mempty
