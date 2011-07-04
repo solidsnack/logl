@@ -12,7 +12,6 @@ import Data.Object hiding ( lookupMapping, lookupObject
 import qualified Data.Object
 import Data.Object.Yaml
 
-import Language.LogL.Control.Failure.Either
 import qualified Language.LogL.Pickle as Pickle
 import Language.LogL.Syntax
 
