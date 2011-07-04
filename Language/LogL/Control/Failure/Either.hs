@@ -10,3 +10,5 @@ import Control.Failure
 instance Failure e (Either e) where
   failure e                  =  Left e
 
+eitherExc onExc              =  either (const onExc) return
+

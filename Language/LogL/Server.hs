@@ -29,6 +29,7 @@ import qualified Network.HTTP.Types as Web
 import qualified Network.Wai as Web
 import qualified Network.Wai.Handler.Warp as Web
 
+import Language.LogL.Control.Failure.Either
 import qualified Language.LogL.Macros as Macros
 import qualified Language.LogL.YAML as YAML
 import Language.LogL.Backend
@@ -44,17 +45,24 @@ serve nBytes b settings socket = case socket of
 wai                         ::  (Backend b) => Word32 -> b -> Web.Application
 wai nBytes b Web.Request{..} =  methodCheck
  where
-  methodCheck                =  case (Web.parseMethod requestMethod) of
-    Right Web.GET           ->  if pathInfo /= [] then badPath
-                                                  else hello
+  methodCheck                =  case Web.parseMethod requestMethod of
+    Right Web.GET           ->  if pathInfo /= [] then badPath else hello
+    Right Web.HEAD          ->  if pathInfo /= [] then badPath else head
     Right Web.POST          ->  case pathInfo of
-      ["interpret"]         ->  do txt <- takeOnlyNBytes nBytes
-                                   post
-      _                     ->  badPath
-    Right Web.HEAD          ->  if pathInfo /= [] then badPath
-                                                  else head
+                                  ["interpret"] -> interpretReq nBytes
+                                  _             -> badPath
     Right _                 ->  unhandledMethod
-    Left _                  ->  unknownMethod
+    Left _                  ->  unhandledMethod
+
+interpretReq nBytes          =  do
+  bytes                     <-  takeOnlyNBytes nBytes
+  yaml                      <-  eitherExc (excReq "Bad YAML parse.")
+                                          (decode bytes)
+  post
+ where
+  decode :: ByteString -> Either YAML.ParseException YAML.YamlObject
+  decode                     =  YAML.decode
+
 
 newtype RequestException     =  RequestException ByteString
 instance Show RequestException where
@@ -62,17 +70,19 @@ instance Show RequestException where
 deriving instance Typeable RequestException
 instance Exception RequestException
 
+excReq :: (Monad m) => ByteString -> Enumerator.Iteratee a m b
+excReq                       =  Enumerator.throwError . RequestException
+
 
 badPath                      =  http404 []
 unhandledMethod              =  http405 [("Allow", "POST, GET, HEAD")]
-unknownMethod                =  http400 []
 internalServerError          =  http500 []
 
 post                         =  http200 [contentYAML] "good: POST\n"
 head                         =  http200 [contentHTML] ""
 hello = http200 [contentHTML] $(Macros.text "./html/hello.html")
 
-http400 headers              =  response Web.status400 headers mempty
+http400 headers msg          =  response Web.status400 headers (blaze msg)
 http404 headers              =  response Web.status404 headers mempty
 http405 headers              =  response Web.status405 headers mempty
 http500 headers              =  response Web.status500 headers mempty
@@ -112,12 +122,11 @@ takeOnlyNBytes :: (Monad m) ---------------------------------------------
                => Word32 -> Enumerator.Iteratee ByteString m ByteString
 takeOnlyNBytes n             =  worker (fromIntegral n) ""
  where
-  exc                        =  RequestException "Body too large."
   worker n b                 =  do
     mb'                     <-  Enumerator.head
     case mb' of
       Just b' | len <= n    ->  worker (n-len) (mappend b b')
-              | otherwise   ->  Enumerator.throwError exc
+              | otherwise   ->  excReq "Body too large."
        where
         len                  =  Data.ByteString.length b'
       Nothing               ->  return b
