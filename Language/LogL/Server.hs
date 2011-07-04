@@ -7,17 +7,23 @@
 
 module Language.LogL.Server where
 
-import Prelude hiding (head)
+import Prelude hiding (head, length)
 import Control.Applicative
+import Control.Exception
 import Control.Monad
 import Control.Monad.Trans
-import Data.ByteString.Char8 (pack, ByteString)
+import Data.ByteString.Char8 (unpack, pack, ByteString)
+import qualified Data.ByteString
 import Data.Monoid
+import Data.Typeable
+import Data.Word
+import Network.Socket
 import System.Time
 import System.Locale
 
 import qualified Blaze.ByteString.Builder as Blaze
-import Data.Enumerator hiding (head)
+import qualified Data.Enumerator as Enumerator hiding (head)
+import qualified Data.Enumerator.List as Enumerator
 import qualified Data.Object.Yaml as YAML
 import qualified Network.HTTP.Types as Web
 import qualified Network.Wai as Web
@@ -25,23 +31,36 @@ import qualified Network.Wai.Handler.Warp as Web
 
 import qualified Language.LogL.Macros as Macros
 import qualified Language.LogL.YAML as YAML
+import Language.LogL.Backend
 
 
-wai                         ::  Web.Application
-wai Web.Request{..}          =  methodCheck
---wai Web.Request{..} = catchError methodCheck (const internalServerError)
+serve :: (Backend b) => Word32 -> b -> Web.Settings -> Maybe Socket -> IO ()
+serve nBytes b settings socket = case socket of
+  Nothing                   ->  Web.runSettings        settings          app
+  Just socket               ->  Web.runSettingsSocket  settings  socket  app
  where
-  methodCheck               ::  (MonadIO m) => m Web.Response
+  app                        =  wai nBytes b
+
+wai                         ::  (Backend b) => Word32 -> b -> Web.Application
+wai nBytes b Web.Request{..} =  methodCheck
+ where
   methodCheck                =  case (Web.parseMethod requestMethod) of
     Right Web.GET           ->  if pathInfo /= [] then badPath
                                                   else hello
     Right Web.POST          ->  case pathInfo of
-      ["interpret"]         ->  post
+      ["interpret"]         ->  do txt <- takeOnlyNBytes nBytes
+                                   post
       _                     ->  badPath
     Right Web.HEAD          ->  if pathInfo /= [] then badPath
                                                   else head
     Right _                 ->  unhandledMethod
     Left _                  ->  unknownMethod
+
+newtype RequestException     =  RequestException ByteString
+instance Show RequestException where
+  show (RequestException m)  =  "RequestException: " ++ unpack m
+deriving instance Typeable RequestException
+instance Exception RequestException
 
 
 badPath                      =  http404 []
@@ -86,4 +105,20 @@ httpCurrentDate              =  do
   c                         <-  getClockTime
   let utc_time               =  (toUTCTime c) {ctTZName = "GMT"}
   return $ formatCalendarTime defaultTimeLocale rfc822DateFormat utc_time
+
+{-| Throw out input if it's greater than a certain size.
+ -}
+takeOnlyNBytes :: (Monad m) ---------------------------------------------
+               => Word32 -> Enumerator.Iteratee ByteString m ByteString
+takeOnlyNBytes n             =  worker (fromIntegral n) ""
+ where
+  exc                        =  RequestException "Body too large."
+  worker n b                 =  do
+    mb'                     <-  Enumerator.head
+    case mb' of
+      Just b' | len <= n    ->  worker (n-len) (mappend b b')
+              | otherwise   ->  Enumerator.throwError exc
+       where
+        len                  =  Data.ByteString.length b'
+      Nothing               ->  return b
 
