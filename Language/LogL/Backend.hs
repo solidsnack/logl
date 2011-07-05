@@ -127,7 +127,7 @@ instance Backend Postgres where
       Left b                ->  error (unpack b)
       Right _               ->  do pid <- PG.backendPID conn
                                    Postgres conninfo conn pid <$> newMVar ()
-  stop Postgres{..}          =  PG.finish conn >> takeMVar lock
+  stop Postgres{..}          =  PG.finish conn
   run Postgres{..} task      =  (envelope . withMVar' lock) (dispatch task)
    where
     dispatch                ::  Task t -> IO (Info Postgres, Status t)
