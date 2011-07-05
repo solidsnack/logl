@@ -42,6 +42,8 @@ data Task t where
   WriteEntry                ::  Entry -> Task (ID Entry)
   WriteTombstone            ::  ID Log -> Task ()
   RetrieveForest            ::  ID Log -> ID Entry -> Task [Entry]
+deriving instance Show (Task t)
+
 class Backend backend where
   type Info backend         ::  *
   type Spec backend         ::  *
@@ -100,6 +102,16 @@ statusListToList (OK t  : r) =  t : statusListToList r
 statusListToList (ERROR : r) =  statusListToList r
 statusListToList []          =  []
 
+
+newtype STDOUT               =  STDOUT (MVar Bool)
+instance Backend STDOUT where
+  type Info STDOUT           =  Bool
+  type Spec STDOUT           =  ()
+  start _                    =  STDOUT <$> newMVar True
+  stop (STDOUT lock)         =  putMVar lock False
+  run (STDOUT lock) task     =  withMVar lock run'
+   where
+    run' open = when open (print task) >> envelope (return (open, ERROR))
 
 data Postgres                =  Postgres { conninfo :: PG.Conninfo,
                                            conn     :: PG.Connection,
