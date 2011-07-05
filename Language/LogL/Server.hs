@@ -54,7 +54,7 @@ wai nBytes b Web.Request{..} =  methodCheck
     Right _                 ->  unhandledMethod
     Left _                  ->  unhandledMethod
 
-interpretReq nBytes          =  do
+interpretReq nBytes          =  flip Enumerator.catchError send400 $ do
   bytes                     <-  takeOnlyNBytes nBytes
   yaml                      <-  eitherExc (excReq "Bad YAML parse.")
                                           (decode bytes)
@@ -62,7 +62,10 @@ interpretReq nBytes          =  do
  where
   decode :: ByteString -> Either YAML.ParseException YAML.YamlObject
   decode                     =  YAML.decode
-
+  send400 e = case fromException e :: Maybe RequestException of
+    Just (RequestException msg) -> http400 [contentYAML]
+                                           (YAML.renderKV [("error", msg)])
+    Nothing                 ->  Enumerator.throwError e
 
 newtype RequestException     =  RequestException ByteString
 instance Show RequestException where

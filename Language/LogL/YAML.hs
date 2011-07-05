@@ -1,16 +1,20 @@
+{-# LANGUAGE OverloadedStrings
+           , RecordWildCards
+  #-}
 {-| Parsing and pretty printing for the YAML request and response format.
  -}
 module Language.LogL.YAML where
 
 import Control.Applicative
 import Data.Tree
-import Data.ByteString hiding (append)
+import Data.ByteString hiding (append, reverse)
 
 import Control.Failure
 import Data.Object hiding ( lookupMapping, lookupObject
                           , lookupScalar, lookupSequence )
 import qualified Data.Object
 import Data.Object.Yaml
+import Text.Libyaml
 
 import qualified Language.LogL.Pickle as Pickle
 import Language.LogL.Syntax
@@ -102,4 +106,13 @@ lookupSequence :: (Failure ObjectExtractError m, Functor m) -------------------
                => ByteString -> [(YamlScalar, YamlObject)]
                -> m [YamlObject]
 lookupSequence b             =  Data.Object.lookupSequence (toYamlScalar b)
+
+
+renderKV                     =  Data.Object.Yaml.encode . worker []
+ where
+  worker stuff []            =  (toYamlObject . Mapping . reverse) stuff
+  worker stuff ((a,b):tail)  =  worker (pair:stuff) tail
+   where
+    pair                     =  (y a, Data.Object.Scalar (y b))
+  y bytes = YamlScalar { value=bytes, tag=NoTag, style=Any }
 
