@@ -12,6 +12,7 @@ import Control.Applicative
 import Control.Exception
 import Control.Monad
 import Control.Monad.Trans
+import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Char8 (unpack, pack, ByteString)
 import qualified Data.ByteString
 import Data.Monoid
@@ -24,6 +25,7 @@ import System.Locale
 import qualified Blaze.ByteString.Builder as Blaze
 import qualified Data.Enumerator as Enumerator hiding (head)
 import qualified Data.Enumerator.List as Enumerator
+import qualified Data.Object as YAML
 import qualified Data.Object.Yaml as YAML
 import qualified Network.HTTP.Types as Web
 import qualified Network.Wai as Web
@@ -33,6 +35,7 @@ import Language.LogL.Control.Failure.Either
 import qualified Language.LogL.Macros as Macros
 import qualified Language.LogL.YAML as YAML
 import Language.LogL.Backend
+import Language.LogL.Interpret
 
 
 serve :: (Backend b) => Word32 -> b -> Web.Settings -> Maybe Socket -> IO ()
@@ -49,15 +52,20 @@ wai nBytes b Web.Request{..} =  methodCheck
     Right Web.GET           ->  if pathInfo /= [] then badPath else hello
     Right Web.HEAD          ->  if pathInfo /= [] then badPath else head
     Right Web.POST          ->  case pathInfo of
-                                  ["interpret"] -> interpretReq nBytes
+                                  ["interpret"] -> post -- interpretReq b nBytes
                                   _             -> badPath
     Right _                 ->  unhandledMethod
     Left _                  ->  unhandledMethod
 
-interpretReq nBytes          =  flip Enumerator.catchError send400 $ do
+interpretReq backend nBytes  =  flip Enumerator.catchError send400 $ do
   bytes                     <-  takeOnlyNBytes nBytes
   yaml                      <-  eitherExc (excReq "Bad YAML parse.")
                                           (decode bytes)
+  mapping                   <-  YAML.fromMapping yaml
+  extracted                 <-  YAML.request mapping
+  case extracted of
+    Just (YAML.Request task) -> liftIO (putStrLn "LOL")
+    Nothing                 ->  liftIO (putStrLn "ROFL")
   post
  where
   decode :: ByteString -> Either YAML.ParseException YAML.YamlObject
