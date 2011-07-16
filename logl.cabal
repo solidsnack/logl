@@ -27,7 +27,8 @@ library
     build-depends             : base >= 4 && < 5
   else
     build-depends             : base < 4
-  build-depends               : containers
+  build-depends               : attoparsec >= 0.8.6
+                              , containers
                               , bytestring >= 0.9
                               , data-object-yaml
                               , murmur-hash
