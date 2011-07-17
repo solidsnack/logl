@@ -23,6 +23,7 @@ import System.Time
 import System.Locale
 
 import qualified Blaze.ByteString.Builder as Blaze
+import Control.Failure
 import qualified Data.Enumerator as Enumerator hiding (head)
 import qualified Data.Enumerator.List as Enumerator
 import qualified Data.Object as YAML
@@ -62,7 +63,8 @@ interpretReq backend nBytes  =  flip Enumerator.catchError send400 $ do
   yaml                      <-  eitherExc (excReq "Bad YAML parse.")
                                           (decode bytes)
   mapping                   <-  YAML.fromMapping yaml
-  extracted                 <-  YAML.request mapping
+--extracted                 <-  YAML.request mapping
+  extracted                 <-  (YAML.Request <$>) <$> YAML.alloc mapping
   case extracted of
     Just (YAML.Request task) -> liftIO (putStrLn "LOL")
     Nothing                 ->  liftIO (putStrLn "ROFL")
@@ -74,6 +76,16 @@ interpretReq backend nBytes  =  flip Enumerator.catchError send400 $ do
     Just (RequestException msg) -> http400 [contentYAML]
                                            (YAML.renderKV [("error", msg)])
     Nothing                 ->  Enumerator.throwError e
+
+--parseRequest :: YAML.YamlObject -> Either YAML.ObjectExtractError
+--                                          (Maybe YAML.Request)
+parseRequest yaml            =  do
+  mapping                   <-  YAML.fromMapping yaml
+  YAML.request mapping
+--  extracted                 <-  YAML.request mapping
+--  case extracted of
+--    Just r                  ->  return r
+--    Nothing                 ->  failure YAML.ExpectedScalar
 
 newtype RequestException     =  RequestException ByteString
 instance Show RequestException where
