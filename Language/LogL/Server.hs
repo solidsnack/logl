@@ -11,6 +11,7 @@ import Prelude hiding (head, length)
 import Control.Applicative
 import Control.Exception
 import Control.Monad
+import Control.Monad.Error
 import Control.Monad.Trans
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Char8 (unpack, pack, ByteString)
@@ -23,7 +24,7 @@ import System.Time
 import System.Locale
 
 import qualified Blaze.ByteString.Builder as Blaze
-import Control.Failure
+import qualified Control.Failure as Failure
 import qualified Data.Enumerator as Enumerator hiding (head)
 import qualified Data.Enumerator.List as Enumerator
 import qualified Data.Object as YAML
@@ -77,21 +78,31 @@ interpretReq backend nBytes  =  flip Enumerator.catchError send400 $ do
                                            (YAML.renderKV [("error", msg)])
     Nothing                 ->  Enumerator.throwError e
 
---parseRequest :: YAML.YamlObject -> Either YAML.ObjectExtractError
---                                          (Maybe YAML.Request)
+parseRequest :: YAML.YamlObject -> Either RequestException YAML.Request
 parseRequest yaml            =  do
-  mapping                   <-  YAML.fromMapping yaml
-  YAML.request mapping
---  extracted                 <-  YAML.request mapping
---  case extracted of
---    Just r                  ->  return r
---    Nothing                 ->  failure YAML.ExpectedScalar
+  mapping                   <-  translateYAMLError $ YAML.fromMapping yaml
+  extracted                 <-  translateYAMLError $ YAML.request mapping
+  undefined
+  case extracted of
+    Just r                  ->  return r
+    Nothing                 ->  Failure.failure exc
+-- where
+--  badParse                   =  const exc
+--  exc                        =  RequestException "Malformed request."
+
+translateYAMLError          ::  Either YAML.ObjectExtractError t
+                            ->  Either RequestException t
+translateYAMLError           =  eitherExc (Failure.failure exc)
+ where
+  exc                        =  RequestException "YAML not as expected."
 
 newtype RequestException     =  RequestException ByteString
 instance Show RequestException where
   show (RequestException m)  =  "RequestException: " ++ unpack m
 deriving instance Typeable RequestException
 instance Exception RequestException
+instance Error RequestException where
+  strMsg                     =  RequestException . pack
 
 excReq :: (Monad m) => ByteString -> Enumerator.Iteratee a m b
 excReq                       =  Enumerator.throwError . RequestException
