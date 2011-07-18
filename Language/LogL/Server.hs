@@ -33,7 +33,7 @@ import qualified Network.HTTP.Types as Web
 import qualified Network.Wai as Web
 import qualified Network.Wai.Handler.Warp as Web
 
-import Language.LogL.Control.Failure.Either
+import Language.LogL.Threether
 import qualified Language.LogL.Macros as Macros
 import qualified Language.LogL.YAML as YAML
 import Language.LogL.Backend
@@ -54,45 +54,42 @@ wai nBytes b Web.Request{..} =  methodCheck
     Right Web.GET           ->  if pathInfo /= [] then badPath else hello
     Right Web.HEAD          ->  if pathInfo /= [] then badPath else head
     Right Web.POST          ->  case pathInfo of
-                                  ["interpret"] -> post -- interpretReq b nBytes
+                                  ["interpret"] -> interpretReq b nBytes
                                   _             -> badPath
     Right _                 ->  unhandledMethod
     Left _                  ->  unhandledMethod
 
 interpretReq backend nBytes  =  flip Enumerator.catchError send400 $ do
   bytes                     <-  takeOnlyNBytes nBytes
-  yaml                      <-  eitherExc (excReq "Bad YAML parse.")
-                                          (decode bytes)
-  mapping                   <-  YAML.fromMapping yaml
---extracted                 <-  YAML.request mapping
-  extracted                 <-  (YAML.Request <$>) <$> YAML.alloc mapping
-  case extracted of
-    Just (YAML.Request task) -> liftIO (putStrLn "LOL")
-    Nothing                 ->  liftIO (putStrLn "ROFL")
+  yaml                      <-  threetherOK (excReq "Bad YAML parse.")
+                                            (decode bytes)
+  YAML.Request task         <-  threether (Enumerator.throwError)
+                                          (excReq "Bad YAML parse.")
+                                          (return)
+                                          (parseRequest yaml)
+  liftIO $ putStrLn (show task)
   post
  where
-  decode :: ByteString -> Either YAML.ParseException YAML.YamlObject
+  decode :: ByteString -> Threether YAML.ParseException YAML.YamlObject
   decode                     =  YAML.decode
   send400 e = case fromException e :: Maybe RequestException of
     Just (RequestException msg) -> http400 [contentYAML]
                                            (YAML.renderKV [("error", msg)])
     Nothing                 ->  Enumerator.throwError e
 
-parseRequest :: YAML.YamlObject -> Either RequestException YAML.Request
+parseRequest :: YAML.YamlObject -> Threether RequestException YAML.Request
 parseRequest yaml            =  do
   mapping                   <-  translateYAMLError $ YAML.fromMapping yaml
   extracted                 <-  translateYAMLError $ YAML.request mapping
-  undefined
   case extracted of
     Just r                  ->  return r
     Nothing                 ->  Failure.failure exc
--- where
---  badParse                   =  const exc
---  exc                        =  RequestException "Malformed request."
+   where
+    exc                      =  RequestException "Bad data in YAML."
 
-translateYAMLError          ::  Either YAML.ObjectExtractError t
-                            ->  Either RequestException t
-translateYAMLError           =  eitherExc (Failure.failure exc)
+translateYAMLError          ::  Threether YAML.ObjectExtractError t
+                            ->  Threether RequestException t
+translateYAMLError           =  threetherOK (Failure.failure exc)
  where
   exc                        =  RequestException "YAML not as expected."
 
@@ -101,8 +98,6 @@ instance Show RequestException where
   show (RequestException m)  =  "RequestException: " ++ unpack m
 deriving instance Typeable RequestException
 instance Exception RequestException
-instance Error RequestException where
-  strMsg                     =  RequestException . pack
 
 excReq :: (Monad m) => ByteString -> Enumerator.Iteratee a m b
 excReq                       =  Enumerator.throwError . RequestException

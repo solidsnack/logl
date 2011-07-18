@@ -20,6 +20,9 @@ data LogL t where
   Append :: ID Log -> ID Entry -> [Tree Message] -> LogL ([Tree (ID Entry)])
   Free              ::  ID Log -> LogL ()
   Forest            ::  ID Log -> ID Entry -> LogL [Tree Entry]
+deriving instance Eq (LogL t)
+--deriving instance Ord (LogL t) -- Leads to: error "Urk! in TcGenDeriv"
+deriving instance Show (LogL t)
 
 data Log                     =  Log !(ID Log) !UTCTime !UTCTime !Tag
 deriving instance Eq Log
