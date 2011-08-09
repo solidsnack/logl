@@ -69,7 +69,7 @@ interpretReq backend nBytes  =  flip Enumerator.catchError send400 $ do
                                           (excReq "Bad YAML parse.")
                                           (return)
                                           (parseRequest yaml)
-  liftIO $ putStrLn (show task)
+  stat                      <-  liftIO $ interpret backend task
   post
  where
   decode :: ByteString -> Threether YAML.ParseException YAML.YamlObject
