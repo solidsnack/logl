@@ -53,9 +53,11 @@ wai nBytes b Web.Request{..} =  methodCheck
   methodCheck                =  case Web.parseMethod requestMethod of
     Right Web.GET           ->  if pathInfo /= [] then badPath else hello
     Right Web.HEAD          ->  if pathInfo /= [] then badPath else head
-    Right Web.POST          ->  case pathInfo of
-                                  ["interpret"] -> interpretReq b nBytes
-                                  _             -> badPath
+    Right Web.POST          ->  if pathInfo == ["interpret"]
+                                  then  if contentYAML `elem` requestHeaders
+                                          then  interpretReq b nBytes
+                                          else  http415
+                                  else  badPath
     Right _                 ->  unhandledMethod
     Left _                  ->  unhandledMethod
 
@@ -114,8 +116,11 @@ hello = http200 [contentHTML] $(Macros.text "./html/hello.html")
 http400 headers msg          =  response Web.status400 headers (blaze msg)
 http404 headers              =  response Web.status404 headers mempty
 http405 headers              =  response Web.status405 headers mempty
+http415                      =  response status415 [] mempty
 http500 headers              =  response Web.status500 headers mempty
 http200 headers msg          =  response Web.status200 headers (blaze msg)
+
+status415 = Web.Status{statusCode=415, statusMessage="Unsupported Media Type"}
 
 
 response :: (MonadIO m) ----------------------------------------------------
