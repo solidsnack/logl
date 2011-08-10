@@ -1,6 +1,5 @@
 
-<request>        =  version: <protocol version>
-                    <alloc>  |  <free>  |  <append>  |  <forest>
+<request>        =  <alloc>  |  <free>  |  <append>  |  <forest>
 
 <response>       =  alloc: <allocated>   |  free: <freed>
                  |  append: <appended>*  |  forest: <entry>*
