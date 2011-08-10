@@ -24,7 +24,7 @@ conninfos = conn <$> [ "logl0", "logl1", "logl2", "logl3", "logl4",
                        "logl5", "logl6", "logl7", "logl8", "logl9" ]
  where
   conn dbname = PG.conninfo{ dbname=dbname, host="localhost",
-                             user="logl", password="pwned"    }
+                             user="logl",   password="pwned" }
 
 default_sharded             ::  IO (Sharded Postgres)
 default_sharded              =  start ((2,3), conninfos)
