@@ -2,7 +2,8 @@
 
    :; sudo -u postgres psql < ./walkthrough/connections.sql
 
-  Start the HTTP API server.
+  Start the HTTP API server. It has the connection parameters hardcoded and
+  will serve on port 3000.
 
-   :; ./servers/warp.hs
+   :; ./walkthrough/server.hs
 
