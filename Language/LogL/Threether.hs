@@ -1,4 +1,6 @@
 {-# LANGUAGE StandaloneDeriving
+           , FlexibleInstances
+           , MultiParamTypeClasses
   #-}
 
 module Language.LogL.Threether where

@@ -3,6 +3,7 @@
            , TupleSections
            , TemplateHaskell
            , NoMonomorphismRestriction
+           , StandaloneDeriving
   #-}
 
 module Language.LogL.Server where

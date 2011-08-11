@@ -6,6 +6,7 @@
            , TemplateHaskell
            , TypeFamilies
            , FlexibleContexts
+           , FlexibleInstances
            , TupleSections
            , UndecidableInstances
   #-}

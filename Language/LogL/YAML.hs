@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings
+           , FlexibleContexts
            , RecordWildCards
+           , RankNTypes
+           , GADTs
   #-}
 {-| Parsing and pretty printing for the YAML request and response format.
  -}

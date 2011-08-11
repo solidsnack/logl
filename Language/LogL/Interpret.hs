@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards
+           , GADTs
   #-}
 module Language.LogL.Interpret where
 

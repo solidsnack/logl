@@ -1,0 +1,8 @@
+  Create databases/accounts with ./walkthrough/connections.sql; for example:
+
+   :; sudo -u postgres psql < ./walkthrough/connections.sql
+
+  Start the HTTP API server.
+
+   :; ./servers/warp.hs
+
