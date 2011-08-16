@@ -10,7 +10,12 @@
   Now you can POST a request to allocate a new log:
 
    :; echo "alloc: { time: '2010-03-02T12:11:10Z', tag: example }" |
-      curl --data-binary @- \
-           --header "Content-Type: application/yaml" \
+      curl --data-binary @- -i --header "Content-Type: application/yaml" \
            http://localhost:3000/interpret
+    HTTP/1.1 200 OK
+    Date: Tue, 16 Aug 2011 11:05:04 GMT
+    Content-Type: application/yaml
+    Transfer-Encoding: chunked
+
+    'alloc': '97f5d690-c7f7-11e0-ba9f-575239c08e8c'
 
