@@ -7,3 +7,10 @@
 
    :; ./walkthrough/server.hs
 
+  Now you can POST a request to allocate a new log:
+
+   :; echo "alloc: { time: '2010-03-02T12:11:10Z', tag: example }" |
+      curl --data-binary @- \
+           --header "Content-Type: application/yaml" \
+           http://localhost:3000/interpret
+

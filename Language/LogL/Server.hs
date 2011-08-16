@@ -71,7 +71,7 @@ interpretReq backend nBytes  =  flip Enumerator.catchError send400 $ do
                                           (return)
                                           (parseRequest yaml)
   stat                      <-  liftIO $ interpret backend task
-  post
+  sendYAML (YAML.statYAML task stat)
  where
   decode :: ByteString -> Threether YAML.ParseException YAML.YamlObject
   decode                     =  YAML.decode
@@ -110,7 +110,7 @@ badPath                      =  http404 []
 unhandledMethod              =  http405 [("Allow", "POST, GET, HEAD")]
 internalServerError          =  http500 []
 
-post                         =  http200 [contentYAML] "good: POST\n"
+sendYAML yaml                =  http200 [contentYAML] (YAML.encode yaml)
 head                         =  http200 [contentHTML] ""
 hello = http200 [contentHTML] $(Macros.text "./html/hello.html")
 

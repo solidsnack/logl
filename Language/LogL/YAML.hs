@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings
+           , NoMonomorphismRestriction
            , FlexibleContexts
            , RecordWildCards
            , RankNTypes
@@ -21,6 +22,7 @@ import Text.Libyaml
 
 import qualified Language.LogL.Pickle as Pickle
 import Language.LogL.Syntax
+import Language.LogL.Backend
 
 
 data Request where
@@ -118,4 +120,42 @@ renderKV                     =  Data.Object.Yaml.encode . worker []
    where
     pair                     =  (y a, Data.Object.Scalar (y b))
   y bytes = YamlScalar { value=bytes, tag=NoTag, style=Any }
+
+statYAML                    ::  LogL t -> Status t -> YamlObject
+statYAML (Alloc _ _) (OK u)  =  p "alloc"              $ sy (Pickle.o u)
+statYAML (Append _ _ _) (OK t) = p "append"            $ roseToYAML t
+statYAML (Free _) (OK ())    =  p "free"               $ sy "true"
+statYAML (Forest _ _) (OK t) =  p "forest"             $ entriesToYAML t
+statYAML (Alloc _ _) ERROR   =  p "alloc"   (p "error" $ sy "Bad allocation.")
+statYAML (Append _ _ _) ERROR = p "append"  (p "error" $ sy "Bad append.")
+statYAML (Free _) ERROR      =  p "free"    (p "error" $ sy "Bad free.")
+statYAML (Forest _ _) ERROR  =  p "forest"  (p "error" $ sy "Bad forest.")
+
+p                           ::  ByteString -> YamlObject -> YamlObject
+p k v                        =  Data.Object.Mapping [(s k, v)]
+
+s                           ::  ByteString -> YamlScalar
+s bytes                      =  YamlScalar {value=bytes, tag=NoTag, style=Any}
+
+sy                          ::  ByteString -> YamlObject
+sy                           =  Data.Object.Scalar . s
+
+
+roseToYAML                  ::  (Pickle.Pickle t) => Forest t -> YamlObject
+roseToYAML forest            =  Data.Object.Mapping (f <$> forest)
+ where
+  f Node{..} = ((s . Pickle.o) rootLabel, roseToYAML subForest)
+
+entriesToYAML forest         =  Data.Object.Sequence (f <$> forest)
+ where
+  f Node{..}                 =  Data.Object.Mapping keys
+   where
+    Entry{..}                =  rootLabel
+    syP                      =  sy . Pickle.o
+    keys                     =  [ (s "uuid",     syP uuid),
+                                  (s "received", syP timestamp),
+                                  (s "tag",      syP tag),
+                                  (s "time",     syP client_time),
+                                  (s "bytes",    sy bytes),
+                                  (s "entries",  entriesToYAML subForest) ]
 
