@@ -2,7 +2,8 @@
 <request>        =  <alloc>  |  <free>  |  <append>  |  <forest>
 
 <response>       =  alloc: <allocated>   |  free: <freed>
-                 |  append: <appended>*  |  forest: <entry>*
+                 |  append: <appended>*  |  forest: ( <entry>*
+                                                    | error: <description> )
 
 
 <alloc>          =  alloc:
