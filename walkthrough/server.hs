@@ -13,7 +13,6 @@ import Network.Wai.Handler.Warp
 import Language.LogL.Backend hiding (conninfo)
 import Language.LogL.Server
 import Language.LogL.PG
---import qualified Language.LogL.PG as PG
 
 
 main                         =  do
