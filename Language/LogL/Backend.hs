@@ -219,7 +219,7 @@ instance (Backend b) => Backend (Sharded b) where
     return (infos, merged)
    where
     (n, m)                   =  n_of_m
-    key                      =  shardTask task
+    key                      =  routeTask task
     fractional              ::  Double
     fractional               =  fromIntegral key
                              /  fromIntegral (maxBound :: Word64)
@@ -236,15 +236,15 @@ instance (Backend b) => Backend (Sharded b) where
     merge acc i (OK t:tail)  =  merge (OK t `mappend` acc) (i-1) tail
     merge acc i (ERROR:tail) =  merge acc i tail
 
-shardTask                   ::  Task t -> Word64
-shardTask task               =  shardLog $ case task of
+routeTask                   ::  Task t -> Word64
+routeTask task               =  routeLog $ case task of
   WriteLog (Log uuid _ _ _) ->  uuid
   WriteEntry Entry{..}      ->  log
   WriteTombstone log        ->  log
   RetrieveForest log _      ->  log
 
-shardLog                    ::  ID Log -> Word64
-shardLog (ID uuid)           =  (asWord64 . hash64) uuid
+routeLog                    ::  ID Log -> Word64
+routeLog (ID uuid)           =  (asWord64 . hash64) uuid
 
 
 data Timeout b               =  Timeout { micros :: Word32, worker :: b }
