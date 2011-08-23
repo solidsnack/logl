@@ -1,19 +1,82 @@
-  In a nutshell, append only, log-structured storage in the cloud.
+This work is a result of a conversation with Mark McGranaghan, of Heroku, who
+advocated logging with compaction as a core interface for reliable storage at
+a time when I was quite convinced that random access I/O was the only way to
+go. The system provides fault tolerant storage and retrieval of append-only,
+branchy logs. Four log operations are supported:
 
-  Language description in LogL.agda. The basics are:
+  * Allocation of a new, empty log.
 
- .  Offer allocation of logs, assigning a fresh ID to each new log; offer
-    deletion of whole logs.
+  * Append of new log entries below a log pointer.
 
- .  Offer storage of log entries to a given log, assigning each log entry a
-    unique ID.
+  * Retrieval of the subtree below a log pointer.
 
- .  Offer retrieval of log entries by ID.
+  * Deallocation of a log and all its entries.
 
- .  Offer search/retrieval of log entries by time range and string matching.
+Compaction is implemented by allocating a new log, copying the good parts into
+it and de-allocating the old log. Query of log entries within a log, on
+timestamps and content, is planned but not supported at present.
 
- .  Offer the ability to rewrite or filter a log, changing entries while
-    preserving their IDs in a newly allocated log.
 
-  Try to provide features in this order.
+ -- How A Request Is Handling -------------------------------------------------
+
+A client, wishing to store or retrieve log data, communicates with a single
+front-end (perhaps assigned at random, it makes no difference which one). The
+front-end assigns a unique ID for those requests that amount to allocation of
+space -- creation of a log or log entries -- and, based on the log ID,
+distributes the query over the backends.
+
+                                   front-end 0            backend 0
+
+    client ---- query/action ----> front-end 1 --+------> backend 1
+                                                 |
+                                   front-end 2   +------> backend 2
+                                                 |
+                                   ...           +------> backend 3
+
+                                                          backend 4
+
+                                                          ...
+
+The result of a request is the majority result of the backends, if a majority
+exists; if no majority is exists, it is taken to be a rejection of a write or
+an indicator that the data is unavailable for reading.
+
+Once a log is created, its attributes -- tag and time -- can not be changed;
+and this is similarly the case for log entries. The API does not, in fact,
+provide any instructions that allow one to write to an item with a given ID;
+IDs for logs and log entries are assigned by a front-end and then forwarded to
+the backends and returned to the clients.
+
+
+ -- Caching, Deletion & Failure To Retrieve -----------------------------------
+
+The way a log entry is formed, it must explicitly mention the log entry before
+it. One consequence of this is that concurrent writers branch the log instead
+of interleaving; another is that the ordering in the logs is fundamentally
+causal, not time-based, and time synchronization issues across the system can
+not in any way influence the ordering of log entries. A chain of log entries,
+from a child to a parent, may be cached indefinitely, as both the content and
+the structure of the chain can not, in anyway, be affected by subsequent
+operations.
+
+When a log is deleted, the effect is as though the log had not been created in
+the first place; there is no way to distinguish between data that was removed
+and data that never existed in the first place or data for which there has
+been an outage that prevents its retrieval.
+
+It is worth asking, how does deletion interact with the indefinite caching
+property? The system does not guarantee to always return a result for a given
+query; but when it does return a result, the mapping between entry IDs and
+entry contents is always the same and the path from a child to its parent is
+always the same. This is the meaning of the non-distinguishability of deletion
+and a simple failure to retrieve data.
+
+
+ -- Implementation Notes ------------------------------------------------------
+
+The front-end is implemented in Haskell, a futuristic language. The backend is
+simply Postgres, chosen for its well thought-out approach to data durability.
+The Haskell front-end is given a few database connection strings, connects to
+each database and loads the definition of tables and stored procedures if they
+are not already present.
 
