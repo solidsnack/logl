@@ -17,7 +17,7 @@ it and de-allocating the old log. Query of log entries within a log, on
 timestamps and content, is planned but not supported at present.
 
 
- -- How A Request Is Handling -------------------------------------------------
+ -- How A Request Is Handled --------------------------------------------------
 
 A client, wishing to store or retrieve log data, communicates with a single
 front-end (perhaps assigned at random, it makes no difference which one). The
@@ -74,9 +74,13 @@ and a simple failure to retrieve data.
 
  -- Implementation Notes ------------------------------------------------------
 
-The front-end is implemented in Haskell, a futuristic language. The backend is
-simply Postgres, chosen for its well thought-out approach to data durability.
-The Haskell front-end is given a few database connection strings, connects to
-each database and loads the definition of tables and stored procedures if they
-are not already present.
+The front-end is implemented in Haskell, a futuristic programming language
+with advanced features like lexical scope and lambdas (kind of like Python 3
+or C++0x). The Glorious Glasgow Haskell Compiler's threading support
+simplified some aspects of this project.
+
+The backend is SQL stored procedures for Postgres, chosen for its well
+thought-out approach to data durability. The Haskell front-end is given a few
+database connection strings, connects to each database and loads up the
+definition of tables and stored procedures if they are not already present.
 
