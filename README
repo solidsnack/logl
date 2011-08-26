@@ -74,10 +74,9 @@ and a simple failure to retrieve data.
 
  -- Implementation Notes ------------------------------------------------------
 
-The front-end is implemented in Haskell, a futuristic programming language
-with advanced features like lexical scope and lambdas (kind of like Python 3
-or C++0x). The Glorious Glasgow Haskell Compiler's threading support
-simplified some aspects of this project.
+The front-end is implemented in Haskell, a futuristic, purely functional
+programming language. The Glorious Glasgow Haskell Compiler's threading
+support simplified some aspects of this project.
 
 The backend is SQL stored procedures for Postgres, chosen for its well
 thought-out approach to data durability. The Haskell front-end is given a few
