@@ -4,16 +4,26 @@
  -}
 module Language.LogL.Accounting where
 
-import Data.Map
+import qualified Data.Map as Map
+import Data.Map (Map)
+import Data.Monoid
+
+import Language.LogL.Syntax
+
 
 data Account = Account { tombstone :: Bool, alloc :: Bool, entries :: Entries }
 instance Monoid Account where
   mempty                     =  Account False False mempty
-  mappend (Account a b e) (Account a' b' e') = Account (a || a')      (b || b')
-                                                       (mappend e e')
+  Account a b e `mappend` Account a' b' e' = Account (a || a') (b || b')
+                                                     (mappend e e')
 
 data Entries = Entries { read :: [ID Entry], append :: [ID Entry] }
 instance Monoid Entries where
   mempty                     =  Entries [] []
-  mappend (Entries r a) (Entries r' a') = Entries (mappend r r') (mappend a a')
+  Entries r a `mappend` Entries r' a' = Entries (mappend r r') (mappend a a')
+
+newtype Accounts             =  Accounts (Map (ID Log) Account)
+instance Monoid Accounts where
+  mempty                     =  Accounts Map.empty
+  Accounts m `mappend` Accounts m' = Accounts (Map.unionWith mappend m m')
 
