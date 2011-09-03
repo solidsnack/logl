@@ -2,6 +2,8 @@
     log in up to four ways: allocating it, tombstoning it, appending entries
     and reading entries.
  -}
+{-# LANGUAGE StandaloneDeriving
+  #-}
 module Language.LogL.Accounting where
 
 import qualified Data.Map as Map
