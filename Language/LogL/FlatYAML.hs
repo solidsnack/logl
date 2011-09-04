@@ -12,6 +12,7 @@ import qualified Data.ByteString.Char8
 import qualified Data.List as List
 import Data.Monoid
 import Numeric
+import Text.Printf
 
 import Blaze.ByteString.Builder
 import Data.Object.Yaml (YamlObject, YamlScalar(..))
@@ -48,7 +49,7 @@ escapeFlat YamlScalar{..} | quotingNeeded = toByteString (quote builder)
     isControlOrHigh          =  byte < 0x20 || byte > 0x7e
     soFar'                   =  mappend soFar . fromWord8
     soFar''                  =  mappend soFar . fromByteString
-    hexEscape = Data.ByteString.Char8.pack ("\\x" ++ showHex byte "")
+    hexEscape = Data.ByteString.Char8.pack (printf "\\x%02x" byte)
 
 encodeKV (k, v) = mappend (fromByteString (escapeFlat k `mappend` ": "))
                           (encodeFlat v)
