@@ -39,8 +39,8 @@ escapeFlat YamlScalar{..} | quotingNeeded = toByteString (quote builder)
   quote b                    =  q `mappend` b `mappend` q
   q                          =  (fromWord8 . fromIntegral . fromEnum) '"'
   f (quotingNeeded, soFar) byte
-    | isControlOrHigh        =  (True,          soFar'' hexEscape)
-    | isQuoteMagic           =  (True,          soFar'' ("\\" `snoc` byte))
+    | isControlOrHigh        =  (True,          soFar'' escaped)
+    | isQuoteMagic           =  (True,          soFar'' escaped)
     | isYAMLSpecial          =  (True,          soFar' byte)
     | otherwise              =  (quotingNeeded, soFar' byte)
    where
@@ -49,7 +49,19 @@ escapeFlat YamlScalar{..} | quotingNeeded = toByteString (quote builder)
     isControlOrHigh          =  byte < 0x20 || byte > 0x7e
     soFar'                   =  mappend soFar . fromWord8
     soFar''                  =  mappend soFar . fromByteString
-    hexEscape = Data.ByteString.Char8.pack (printf "\\x%02x" byte)
+    escaped                  =  case (toEnum . fromIntegral) byte of
+      '\0'                  ->  "\\0"
+      '\a'                  ->  "\\a"
+      '\b'                  ->  "\\b"
+      '\t'                  ->  "\\t"
+      '\n'                  ->  "\\n"
+      '\v'                  ->  "\\v"
+      '\f'                  ->  "\\f"
+      '\r'                  ->  "\\r"
+      '\ESC'                ->  "\\e"
+      '\\'                  ->  "\\r"
+      '"'                   ->  "\\\""
+      _ -> Data.ByteString.Char8.pack (printf "\\x%02x" byte)
 
 encodeKV (k, v) = mappend (fromByteString (escapeFlat k `mappend` ": "))
                           (encodeFlat v)
