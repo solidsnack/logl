@@ -13,17 +13,24 @@ import Data.Monoid
 import Language.LogL.Syntax
 
 
+{-| An account of resources touched in a particular log.
+ -}
 data Account = Account { tombstone :: Bool, alloc :: Bool, entries :: Entries }
 instance Monoid Account where
   mempty                     =  Account False False mempty
   Account a b e `mappend` Account a' b' e' = Account (a || a') (b || b')
                                                      (mappend e e')
 
+{-| Account of affected log entries -- read or written.
+ -}
 data Entries = Entries { read :: [ID Entry], append :: [ID Entry] }
 instance Monoid Entries where
   mempty                     =  Entries [] []
   Entries r a `mappend` Entries r' a' = Entries (mappend r r') (mappend a a')
 
+{-| A collection of accounts across many logs. A 'Monoid' instance provides
+    for merging of accounts.
+ -}
 newtype Accounts             =  Accounts (Map (ID Log) Account)
 instance Monoid Accounts where
   mempty                     =  Accounts Map.empty
