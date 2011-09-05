@@ -59,7 +59,7 @@ escapeFlat YamlScalar{..} | quotingNeeded = toByteString (quote builder)
       '\f'                  ->  "\\f"
       '\r'                  ->  "\\r"
       '\ESC'                ->  "\\e"
-      '\\'                  ->  "\\r"
+      '\\'                  ->  "\\\\"
       '"'                   ->  "\\\""
       _ -> Data.ByteString.Char8.pack (printf "\\x%02x" byte)
 
