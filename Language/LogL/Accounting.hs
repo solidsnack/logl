@@ -36,3 +36,9 @@ instance Monoid Accounts where
   mempty                     =  Accounts Map.empty
   Accounts m `mappend` Accounts m' = Accounts (Map.unionWith mappend m m')
 
+{-| Merge an account with a collection of accounts.
+ -}
+add                         ::  ID Log -> Account -> Accounts -> Accounts
+add logID account accounts =
+  accounts `mappend` Accounts (Map.fromList [(logID, account)])
+
