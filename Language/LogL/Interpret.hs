@@ -24,9 +24,9 @@ interpret backend logl       =  case logl of
     let log                  =  Log uuid timestamp client_time tag
     WriteLog log `pipe` const uuid
   Append logID parentID ms  ->  do
-      trees                 <-  mapM (appendTree logID parentID) ms
-      return $ if any (== ERROR) trees then ERROR
-                                       else OK (statusListToList trees)
+    trees                   <-  mapM (appendTree logID parentID) ms
+    return $ if any (== ERROR) trees then ERROR
+                                     else OK (statusListToList trees)
   Free logID                ->  WriteTombstone logID `pipe` const ()
   Forest logID entryID      ->  RetrieveForest logID entryID `pipe` forest
  where
