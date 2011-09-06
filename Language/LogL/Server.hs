@@ -21,6 +21,7 @@ import Data.Monoid
 import Data.Typeable
 import Data.Word
 import Network.Socket
+import System.IO
 import System.Time
 import System.Locale
 
@@ -36,33 +37,36 @@ import qualified Network.Wai.Handler.Warp as Web
 
 import Language.LogL.Threether
 import qualified Language.LogL.Macros as Macros
+import Language.LogL.YAML (ToYAML(..))
 import qualified Language.LogL.YAML as YAML
+import qualified Language.LogL.FlatYAML as YAML
 import Language.LogL.Backend
 import Language.LogL.Interpret
 
 
-serve :: (Backend b) => Word32 -> b -> Web.Settings -> Maybe Socket -> IO ()
-serve nBytes b settings socket = case socket of
+serve :: (Backend b) -------------------------------------------------------
+      => Word32 -> b -> Handle -> Web.Settings -> Maybe Socket -> IO ()
+serve nBytes b logHandle settings socket = case socket of
   Nothing                   ->  Web.runSettings        settings          app
   Just socket               ->  Web.runSettingsSocket  settings  socket  app
  where
-  app                        =  wai nBytes b
+  app                        =  wai nBytes b logHandle
 
-wai                         ::  (Backend b) => Word32 -> b -> Web.Application
-wai nBytes b Web.Request{..} =  methodCheck
+wai :: (Backend b) => Word32 -> b -> Handle -> Web.Application
+wai nBytes b logHandle Web.Request{..} = methodCheck
  where
   methodCheck                =  case Web.parseMethod requestMethod of
     Right Web.GET           ->  if pathInfo /= [] then badPath else hello
     Right Web.HEAD          ->  if pathInfo /= [] then badPath else head
     Right Web.POST          ->  if pathInfo == ["interpret"]
                                   then  if contentYAML `elem` requestHeaders
-                                          then  interpretReq b nBytes
+                                          then  interpretReq b nBytes logHandle
                                           else  http415
                                   else  badPath
     Right _                 ->  unhandledMethod
     Left _                  ->  unhandledMethod
 
-interpretReq backend nBytes  =  flip Enumerator.catchError send400 $ do
+interpretReq backend nBytes logHandle = flip Enumerator.catchError send400 $ do
   bytes                     <-  takeOnlyNBytes nBytes
   yaml                      <-  threetherOK (excReq "Bad YAML parse.")
                                             (decode bytes)
@@ -70,7 +74,7 @@ interpretReq backend nBytes  =  flip Enumerator.catchError send400 $ do
                                           (excReq "Bad YAML parse.")
                                           (return)
                                           (parseRequest yaml)
-  stat                      <-  liftIO $ interpret backend task
+  (stat, accounting)        <-  liftIO $ interpret backend task
   sendYAML (YAML.statYAML task stat)
  where
   decode :: ByteString -> Threether YAML.ParseException YAML.YamlObject

@@ -4,7 +4,7 @@
 {-| YAML serialization to a single-line format that escapes control
     characters and high-bytes. Suitable for inclusion in syslog messages.
  -}
-module Language.LogL.PlainYAML (encodeFlat, escapeFlat) where
+module Language.LogL.FlatYAML (encodeFlat, escapeFlat) where
 
 import Control.Applicative
 import Data.ByteString
