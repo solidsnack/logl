@@ -25,6 +25,9 @@ import Language.LogL.Syntax
 import Language.LogL.Backend
 
 
+class ToYAML t where
+  oYAML                     ::  t -> YamlObject
+
 data Request where
   Request                   ::  forall t. LogL t -> Request
 
