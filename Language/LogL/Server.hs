@@ -75,6 +75,8 @@ interpretReq backend nBytes logHandle = flip Enumerator.catchError send400 $ do
                                           (return)
                                           (parseRequest yaml)
   (stat, accounting)        <-  liftIO $ interpret backend task
+  let accBytes = (Blaze.toByteString . YAML.encodeFlat . YAML.oYAML) accounting
+  liftIO $ Data.ByteString.hPutStr logHandle accBytes
   sendYAML (YAML.statYAML task stat)
  where
   decode :: ByteString -> Threether YAML.ParseException YAML.YamlObject

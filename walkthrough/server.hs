@@ -6,6 +6,7 @@
 
 import Control.Applicative
 import Control.Exception as Exception
+import System.IO
 import System.Exit
 
 import Network.Wai.Handler.Warp
@@ -21,7 +22,7 @@ main                         =  do
     (start ((2,3), conninfos))
     (errOut "An error occured while initializing the backend.")
   putStrLn "Starting server..."
-  serve 0xFF bk defaultSettings Nothing
+  serve 0xFF bk stdout defaultSettings Nothing
  where
   catch :: IO t -> (Exception.SomeException -> IO t) -> IO t
   catch                      =  Exception.catch
