@@ -1,0 +1,31 @@
+
+Log\L presents a userless, unauthenticated storage system. Knowing a log or
+log entry's UUID is enough information to perform any available operation on
+that resource.
+
+This simplifies deployment and management of a Log\L system and, undeniably,
+simplifies development. A reliable user authentication database for a system
+like Log\L can be far more challenging than Log\L itself. Log\L can be placed
+behind an authenticating proxy for authorization and access control; and
+setting a notional "account" in a header gives Log\L something to put in its
+logs for correlating resources with users in the background.
+
+In this document, we describe a setup for Log\L proxied behind Nginx,
+providing authentication and accounting. Note well, though, that nothing in
+this setup ensures a user may only access logs they have allocated; as long as
+they authenticate, they can access any log they can guess the UUID of. True
+access control requires a proxy that understands the request body well enough
+to know which resources are being accessed.
+
+
+The included Nginx config is meant to be run with user-level privileges and
+only touches files in the current working directory. To use it, `cd' to the
+directory the config file is in and run:
+
+   nginx -p "$(pwd)/" -c ./nginx.conf
+
+This won't work if you try to access the file from some other directory, as
+Nginx requires very explicit instruction to find its PID file, logs and so
+forth. You may see an error about being unable to open the system error log;
+that's okay, the error log is set to a local file after the config is loaded.
+
