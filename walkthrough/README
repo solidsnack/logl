@@ -1,9 +1,18 @@
+  You need the Haskell platform to work this program. To check that you have
+  the appropriate packages available, use cabal:
+
+   :; cabal configure
+
+  It will bail, describing the packages it could not find. You can install
+  them with `cabal install'.
+
   Create databases/accounts with ./walkthrough/connections.sql; for example:
 
    :; sudo -u postgres psql < ./walkthrough/connections.sql
 
-  Start the HTTP API server. It has the connection parameters hardcoded and
-  will serve on port 3000.
+  The walkthrough demo-server is executable and can find the application code
+  as long as you are in the root of the source true. It has the connection
+  parameters hardcoded and will serve on port 3000. To start it, run:
 
    :; ./walkthrough/server.hs
 
