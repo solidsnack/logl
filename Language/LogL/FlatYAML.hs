@@ -20,7 +20,8 @@ import Data.Object
 
 
 {-| Encode YAML in a very plain style, escaping newlines, control characters
-    and high bytes and wrapping in quotes as necessary.
+    and high bytes and wrapping in quotes as necessary. The order in which
+    key-value pairs of a map are serialized is deterministic.
  -}
 encodeFlat                  ::  YamlObject -> Builder
 encodeFlat (Mapping pairs)   =  compound "{ " (encodeKV   <$> pairs) " }"
