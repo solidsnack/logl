@@ -21,7 +21,7 @@ main                         =  do
   bk :: Sharded Postgres    <-  catch
     (start ((2,3), conninfos))
     (errOut "An error occured while initializing the backend.")
-  putStrLn "Starting server..."
+  putStrLn "Starting frontend..."
   serve 0xFF bk stdout defaultSettings Nothing
  where
   catch :: IO t -> (Exception.SomeException -> IO t) -> IO t
