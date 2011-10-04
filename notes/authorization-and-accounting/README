@@ -29,3 +29,27 @@ Nginx requires very explicit instruction to find its PID file, logs and so
 forth. You may see an error about being unable to open the system error log;
 that's okay, the error log is set to a local file after the config is loaded.
 
+The Nginx conf proxies to 127.0.0.1:3000 and can be tested by launching Nginx,
+launching netcat one terminal and then making requests with cURL, like so:
+
+ :; ( cd notes/authorization-and-accounting
+      nginx -p "$(pwd)/" -c ./nginx.conf    )
+
+ :; nc -k -l 127.0.0.1 3000
+
+ :; curl --user admin:pwned http://localhost:8000/port3000
+
+You'll see something like this in the netcat window:
+
+   GET /port3000 HTTP/1.0
+   X-LogL-Accounting: admin
+   Host: port3000
+   Connection: close
+   Authorization: Basic YWRtaW46cHduZWQ=
+   User-Agent: curl/7.19.7 (i486-pc-linux-gnu) libcurl/7.19.7 OpenSSL/0.9.8k
+   zlib/1.2.3.3 libidn/1.15
+   Accept: */*
+
+The X-LogL-Accounting header has been set by Nginx to the name of the user
+authenticated with basic auth.
+
