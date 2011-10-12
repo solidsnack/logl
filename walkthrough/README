@@ -11,7 +11,7 @@
    :; sudo -u postgres psql < ./walkthrough/connections.sql
 
   The walkthrough demo-server is executable and can find the application code
-  as long as you are in the root of the source true. It has the connection
+  as long as you are in the root of the source tree. It has the connection
   parameters hardcoded and will serve on port 3000. To start it, run:
 
    :; ./walkthrough/server.hs
